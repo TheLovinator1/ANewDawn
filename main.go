@@ -1,12 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/joho/godotenv"
 )
 
 /*
@@ -34,25 +34,17 @@ var (
 )
 
 func main() {
-	/*
-	   Load the .env file into the environment.
-
-	   You can create a .env file with the following contents:
-	   TOKEN=your-bot-token-here
-	*/
-	err := godotenv.Load()
+	config, err := Load()
 	if err != nil {
-		log.Fatalf("Cannot load .env file: %v", err)
+		log.Fatal(err)
 	}
 
-	// Get the bot token from the environment.
-	token := os.Getenv("TOKEN")
-	if token == "" {
-		log.Fatalln("No token provided. Please set the TOKEN environment variable.")
-	}
+	// Print the token for debugging purposes.
+	discordToken := config.DiscordToken
+	fmt.Println("Discord Token:", discordToken)
 
 	// Create a new Discord session using the provided bot token.
-	session, err := discordgo.New("Bot " + token)
+	session, err := discordgo.New("Bot " + discordToken)
 	if err != nil {
 		log.Fatalf("Cannot create a new Discord session: %v", err)
 	}

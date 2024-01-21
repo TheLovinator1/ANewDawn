@@ -21,4 +21,4 @@ vendor/
 go.work
 
 # Discord bot token
-.env
+settings.json

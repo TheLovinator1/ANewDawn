@@ -1,5 +1,7 @@
 services:
   anewdawn:
-    image: ghcr.io/thelovinator1/anewdawn:master
+    image: ghcr.io/thelovinator1/anewdawn:latest
     container_name: anewdawn
+    environment:
+      - DISCORD_TOKEN=
     restart: unless-stopped

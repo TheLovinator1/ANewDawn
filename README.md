@@ -1,0 +1,2 @@
+# ANewDawn
+Shit Discord bot

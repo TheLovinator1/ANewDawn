@@ -1,44 +1,197 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 
 	"github.com/bwmarrin/discordgo"
+
+	"github.com/vartanbeno/go-reddit/v2/reddit"
 )
 
-/*
-/ping - The bot responds with "Pong!".
-*/
+var config Config
+
+func init() {
+	loadedConfig, err := Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+	config = *loadedConfig
+}
+
+func GetPostsFromReddit(subreddit string) (string, error) {
+	client, err := reddit.NewReadonlyClient()
+	if err != nil {
+		log.Println("Failed to create Reddit client:", err)
+		return "", err
+	}
+
+	posts, _, err := client.Subreddit.TopPosts(context.Background(), subreddit, &reddit.ListPostOptions{
+		ListOptions: reddit.ListOptions{
+			Limit: 100,
+		},
+		Time: "all",
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// [Title](<https://old.reddit.com{Permalink}>)\n{URL}
+	randInt := rand.Intn(len(posts))
+	discordMessage := fmt.Sprintf("[%v](<https://old.reddit.com%v>)\n%v", posts[randInt].Title, posts[randInt].Permalink, posts[randInt].URL)
+
+	return discordMessage, nil
+
+}
+
+func handleRedditCommand(s *discordgo.Session, i *discordgo.InteractionCreate, subreddit string) {
+	post, err := GetPostsFromReddit(subreddit)
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("Cannot get a random post: %v", err),
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: post,
+		},
+	})
+}
+
 var (
 	commands = []*discordgo.ApplicationCommand{
 		{
-			Name:        "ping",
-			Description: "Pong!",
+			Name:        "dank_memes",
+			Description: "Sends dank meme from /r/GoodAnimemes",
+		},
+		{
+			Name:        "waifus",
+			Description: "Sends waifu from /r/WatchItForThePlot",
+		},
+		{
+			Name:        "milkers",
+			Description: "Sends milkers from /r/RetrousseTits",
+		},
+		{
+			Name:        "thighs",
+			Description: "Sends thighs from /r/ZettaiRyouiki",
+		},
+		{
+			Name:        "help",
+			Description: "Sends help message",
+		},
+		{
+			Name:        "echo",
+			Description: "Echoes your message",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "message",
+					Description: "The message to echo",
+					Required:    true,
+				},
+			},
 		},
 	}
 
 	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
-		// Ping command
-		"ping": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		// Dank memes command
+		"dank_memes": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			handleRedditCommand(s, i, "GoodAnimemes")
+		},
+
+		// Waifus command
+		"waifus": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			handleRedditCommand(s, i, "WatchItForThePlot")
+		},
+
+		// Milkers command
+		"milkers": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			handleRedditCommand(s, i, "RetrousseTits")
+		},
+
+		// Thighs command
+		"thighs": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			handleRedditCommand(s, i, "ZettaiRyouiki")
+		},
+		// Help command
+		"help": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			// Send the help message to the channel where the command was used
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: "Pong!",
+					Content: "**Commands**\n\n/dank_memes - Sends dank meme from /r/GoodAnimemes\n/waifus - Sends waifu from /r/WatchItForThePlot\n/milkers - Sends milkers from /r/RetrousseTits\n/thighs - Sends thighs from /r/ZettaiRyouiki\n/help - Sends help message\n/echo - Echoes your message",
 				},
 			})
+		},
+		// Echo command
+		"echo": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			// Check if the user provided a message
+			if len(i.ApplicationCommandData().Options) == 0 {
+				// If not, send an ephemeral message to the user
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "You need to provide a message!",
+						Flags:   discordgo.MessageFlagsEphemeral,
+					},
+				})
+				return
+			}
+
+			// Check that the option contains text
+			if i.ApplicationCommandData().Options[0].Type != discordgo.ApplicationCommandOptionString {
+				// If not, send an ephemeral message to the user
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "The message needs to be text!",
+						Flags:   discordgo.MessageFlagsEphemeral,
+					},
+				})
+				return
+			}
+
+			// Check that the option is not empty
+			if i.ApplicationCommandData().Options[0].StringValue() == "" {
+				// If not, send an ephemeral message to the user
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "The message cannot be empty!",
+						Flags:   discordgo.MessageFlagsEphemeral,
+					},
+				})
+				return
+			}
+
+			// Respond to the original message so we don't get "This interaction failed" error
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "love u",
+					Flags:   discordgo.MessageFlagsEphemeral,
+				},
+			})
+
+			// Send the message to the channel where the command was used
+			s.ChannelMessageSend(i.ChannelID, i.ApplicationCommandData().Options[0].StringValue())
 		},
 	}
 )
 
 func main() {
-	config, err := Load()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// Print the token for debugging purposes.
 	discordToken := config.DiscordToken
 	fmt.Println("Discord Token:", discordToken)
@@ -72,7 +225,7 @@ func main() {
 	log.Println("Adding commands...")
 	registeredCommands := make([]*discordgo.ApplicationCommand, len(commands))
 	for i, v := range commands {
-		cmd, err := session.ApplicationCommandCreate(session.State.User.ID, "341001473661992962", v)
+		cmd, err := session.ApplicationCommandCreate(session.State.User.ID, "", v)
 		if err != nil {
 			log.Panicf("Cannot create '%v' command: %v", v.Name, err)
 		}

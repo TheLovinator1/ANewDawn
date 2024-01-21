@@ -1,0 +1,5 @@
+services:
+  anewdawn:
+    image: ghcr.io/thelovinator1/anewdawn:master
+    container_name: anewdawn
+    restart: unless-stopped

@@ -12,6 +12,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      DISCORD_TOKEN: 0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
@@ -25,6 +27,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      DISCORD_TOKEN: 0
     if: github.event_name != 'pull_request'
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}

@@ -24,6 +24,10 @@ func init() {
 }
 
 func GetPostsFromReddit(subreddit string) (string, error) {
+	if subreddit == "" {
+		return "", fmt.Errorf("subreddit cannot be empty")
+	}
+
 	client, err := reddit.NewReadonlyClient()
 	if err != nil {
 		log.Println("Failed to create Reddit client:", err)
@@ -37,7 +41,12 @@ func GetPostsFromReddit(subreddit string) (string, error) {
 		Time: "all",
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get posts from Reddit: %v", err)
+	}
+
+	// Check if the subreddit exists
+	if len(posts) == 0 {
+		return "", fmt.Errorf("subreddit '%v' does not exist", subreddit)
 	}
 
 	// [Title](<https://old.reddit.com{Permalink}>)\n{URL}

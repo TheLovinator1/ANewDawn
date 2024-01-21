@@ -14,6 +14,6 @@ Create a settings.json file or use the environment variables below
 
 ## Environment variables
 
-| Variable | Description       | Example                                                     |
-| -------- | ----------------- | ----------------------------------------------------------- |
-| TOKEN    | Discord bot token | MzQ2MDAwODAxNDk5ODk0Nzk1.XkK-7A.w18w6Z99c5DXi8ubbSNbj32lMZo |
+| Variable      | Description       | Example                                                     |
+| ------------- | ----------------- | ----------------------------------------------------------- |
+| DISCORD_TOKEN | Discord bot token | MzQ2MDAwODAxNDk5ODk0Nzk1.XkK-7A.w18w6Z99c5DXi8ubbSNbj32lMZo |

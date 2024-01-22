@@ -9,6 +9,7 @@ import (
 // Config holds the configuration parameters
 type Config struct {
 	DiscordToken string `json:"discord_token"`
+	OpenAIToken  string `json:"openai_token"`
 }
 
 // Load reads configuration from settings.json or environment variables
@@ -51,8 +52,14 @@ func loadFromEnvironment() (*Config, error) {
 		return nil, fmt.Errorf("DISCORD_TOKEN environment variable not set or empty. Also tried reading from settings.json file")
 	}
 
+	openAIToken := os.Getenv("OPENAI_TOKEN")
+	if openAIToken == "" {
+		return nil, fmt.Errorf("OPENAI_TOKEN environment variable not set or empty. Also tried reading from settings.json file")
+	}
+
 	config := &Config{
 		DiscordToken: discordToken,
+		OpenAIToken:  openAIToken,
 	}
 
 	return config, nil

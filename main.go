@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 
@@ -200,6 +201,86 @@ var (
 	}
 )
 
+func onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if m.Author.ID == s.State.User.ID {
+		return
+	}
+
+	allowedUsers := []string{
+		"thelovinator",
+		"killyoy",
+		"forgefilip",
+		"plubplub",
+		"nobot",
+		"kao172",
+	}
+
+	// Have a 1/10 chance of replying to a message if written by a user in allowedUsers
+	randInt := rand.Intn(10)
+	log.Println("Random number:", randInt)
+	log.Println("Mentions:", m.Mentions)
+	if len(m.Mentions) == 0 && randInt == 4 {
+		for _, user := range allowedUsers {
+			log.Println("User:", user)
+			if m.Author.Username == user {
+				log.Println("User is in allowedUsers")
+				r, err := GetGPT3Response(m.Content, m.Author.Username)
+				if err != nil {
+					log.Println("Failed to get GPT-3 response:", err)
+					return
+				}
+				log.Println("GPT-3 response:", r)
+				log.Println("Channel ID:", m.ChannelID)
+				s.ChannelMessageSend(m.ChannelID, r)
+			}
+
+		}
+	}
+
+	if m.Mentions != nil {
+		for _, mention := range m.Mentions {
+			if mention.ID == s.State.User.ID {
+				r, err := GetGPT3Response(m.Content, m.Author.Username)
+				if err != nil {
+					if strings.Contains(err.Error(), "prompt is too long") {
+						s.ChannelMessageSend(m.ChannelID, "Message is too long!")
+						return
+					}
+
+					if strings.Contains(err.Error(), "prompt is too short") {
+						s.ChannelMessageSend(m.ChannelID, "Message is too short!")
+						return
+					}
+
+					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Brain broke :flushed: %v", err))
+					return
+				}
+				s.ChannelMessageSend(m.ChannelID, r)
+			}
+		}
+	}
+
+	if strings.HasPrefix(strings.ToLower(m.Content), "lovibot") {
+		r, err := GetGPT3Response(m.Content, m.Author.Username)
+		if err != nil {
+			if strings.Contains(err.Error(), "prompt is too long") {
+				s.ChannelMessageSend(m.ChannelID, "Message is too long!")
+				return
+			}
+
+			if strings.Contains(err.Error(), "prompt is too short") {
+				s.ChannelMessageSend(m.ChannelID, "Message is too short!")
+				return
+			}
+
+			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Brain broke :flushed: %v", err))
+			return
+		}
+		s.ChannelMessageSend(m.ChannelID, r)
+	}
+
+}
+
 func main() {
 	// Print the token for debugging purposes.
 	discordToken := config.DiscordToken
@@ -218,6 +299,9 @@ func main() {
 			h(s, i)
 		}
 	})
+
+	// Add a handler function to the discordgo.Session that is triggered when a message is received.
+	session.AddHandler(onMessageCreate)
 
 	// Print the user we are logging in as.
 	session.AddHandler(func(s *discordgo.Session, _ *discordgo.Ready) {

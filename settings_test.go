@@ -9,7 +9,9 @@ import (
 // Returns a Config object with DiscordToken set when DISCORD_TOKEN environment variable is set
 func TestLoadFromEnvironment_DiscordTokenSet(t *testing.T) {
 	os.Setenv("DISCORD_TOKEN", "test_token")
+	os.Setenv("OPENAI_TOKEN", "test_token2")
 	defer os.Unsetenv("DISCORD_TOKEN")
+	defer os.Unsetenv("OPENAI_TOKEN")
 
 	config, err := loadFromEnvironment()
 	if err != nil {
@@ -18,6 +20,7 @@ func TestLoadFromEnvironment_DiscordTokenSet(t *testing.T) {
 
 	expected := &Config{
 		DiscordToken: "test_token",
+		OpenAIToken:  "test_token2",
 	}
 	if !reflect.DeepEqual(config, expected) {
 		t.Errorf("Expected config to be %v, but got %v", expected, config)

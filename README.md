@@ -1,6 +1,10 @@
 # ANewDawn
 
-Shit Discord bot
+<p align="center">
+  <img src="https://github.com/thelovinator1/ANewDawn/blob/master/.github/logo.jpg?raw=true" title="A New Dawn" alt="A New Dawn" width="300" height="300" loading="lazy">
+</p>
+
+A shit Discord bot.
 
 ## Settings file
 
@@ -8,12 +12,14 @@ Create a settings.json file or use the environment variables below
 
 ```json
 {
-  "discord_token": "your-bot-token-here"
+  "discord_token": "your-bot-token-here",
+  "openai_token": "open-ai-token"
 }
 ```
 
 ## Environment variables
 
-| Variable      | Description       | Example                                                     |
-| ------------- | ----------------- | ----------------------------------------------------------- |
-| DISCORD_TOKEN | Discord bot token | MzQ2MDAwODAxNDk5ODk0Nzk1.XkK-7A.w18w6Z99c5DXi8ubbSNbj32lMZo |
+| Variable      | Description       |
+| ------------- | ----------------- |
+| DISCORD_TOKEN | Discord bot token |
+| OPENAI_TOKEN  | OpenAI token      |

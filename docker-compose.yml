@@ -4,4 +4,5 @@ services:
     container_name: anewdawn
     environment:
       - DISCORD_TOKEN=
+      - OPENAI_TOKEN=
     restart: unless-stopped

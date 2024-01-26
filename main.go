@@ -215,8 +215,8 @@ func onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		"kao172",
 	}
 
-	// Have a 1/10 chance of replying to a message if written by a user in allowedUsers
-	randInt := rand.Intn(10)
+	// Have a 1/100 chance of replying to a message if written by a user in allowedUsers
+	randInt := rand.Intn(100)
 	log.Println("Random number:", randInt)
 	log.Println("Mentions:", m.Mentions)
 	if len(m.Mentions) == 0 && randInt == 4 {

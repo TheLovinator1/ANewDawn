@@ -1,6 +1,6 @@
 module github.com/TheLovinator1/ANewDawn
 
-go 1.21.6
+go 1.21.7
 
 require (
 	github.com/bwmarrin/discordgo v0.27.1

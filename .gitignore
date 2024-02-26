@@ -22,3 +22,5 @@ go.work
 
 # Discord bot token
 settings.json
+
+.env

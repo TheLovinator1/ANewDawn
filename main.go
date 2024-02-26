@@ -17,6 +17,10 @@ import (
 var config Config
 
 func init() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+}
+
+func init() {
 	loadedConfig, err := Load()
 	if err != nil {
 		log.Fatal(err)
@@ -60,23 +64,26 @@ func GetPostsFromReddit(subreddit string) (string, error) {
 
 func handleRedditCommand(s *discordgo.Session, i *discordgo.InteractionCreate, subreddit string) {
 	post, err := GetPostsFromReddit(subreddit)
-	if err != nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("Cannot get a random post: %v", err),
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
+	if err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: fmt.Sprintf("Cannot get a random post: %v", err),
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	}); err != nil {
+		log.Println("Failed to respond to interaction:", err)
 		return
 	}
 
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: post,
 		},
-	})
+	}); err != nil {
+		log.Println("Failed to respond to interaction:", err)
+		return
+	}
 }
 
 var (
@@ -96,22 +103,6 @@ var (
 		{
 			Name:        "thighs",
 			Description: "Sends thighs from /r/ZettaiRyouiki",
-		},
-		{
-			Name:        "help",
-			Description: "Sends help message",
-		},
-		{
-			Name:        "echo",
-			Description: "Echoes your message",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "message",
-					Description: "The message to echo",
-					Required:    true,
-				},
-			},
 		},
 	}
 
@@ -135,68 +126,45 @@ var (
 		"thighs": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			handleRedditCommand(s, i, "ZettaiRyouiki")
 		},
-		// Help command
-		"help": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			// Send the help message to the channel where the command was used
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: "**Commands**\n\n/dank_memes - Sends dank meme from /r/GoodAnimemes\n/waifus - Sends waifu from /r/WatchItForThePlot\n/milkers - Sends milkers from /r/RetrousseTits\n/thighs - Sends thighs from /r/ZettaiRyouiki\n/help - Sends help message\n/echo - Echoes your message",
-				},
-			})
-		},
 		// Echo command
 		"echo": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			// Check if the user provided a message
 			if len(i.ApplicationCommandData().Options) == 0 {
 				// If not, send an ephemeral message to the user
-				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
 						Content: "You need to provide a message!",
 						Flags:   discordgo.MessageFlagsEphemeral,
 					},
 				})
-				return
-			}
-
-			// Check that the option contains text
-			if i.ApplicationCommandData().Options[0].Type != discordgo.ApplicationCommandOptionString {
-				// If not, send an ephemeral message to the user
-				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseChannelMessageWithSource,
-					Data: &discordgo.InteractionResponseData{
-						Content: "The message needs to be text!",
-						Flags:   discordgo.MessageFlagsEphemeral,
-					},
-				})
-				return
+				if err != nil {
+					log.Println("Failed to respond to interaction:", err)
+					return
+				}
 			}
 
 			// Check that the option is not empty
 			if i.ApplicationCommandData().Options[0].StringValue() == "" {
 				// If not, send an ephemeral message to the user
-				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
 						Content: "The message cannot be empty!",
 						Flags:   discordgo.MessageFlagsEphemeral,
 					},
 				})
-				return
+				if err != nil {
+					log.Println("Failed to respond to interaction:", err)
+					return
+				}
 			}
 
 			// Respond to the original message so we don't get "This interaction failed" error
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: "love u",
-					Flags:   discordgo.MessageFlagsEphemeral,
-				},
-			})
-
-			// Send the message to the channel where the command was used
-			s.ChannelMessageSend(i.ChannelID, i.ApplicationCommandData().Options[0].StringValue())
+			if _, err := s.ChannelMessageSend(i.ChannelID, i.ApplicationCommandData().Options[0].StringValue()); err != nil {
+				log.Println("Failed to send message to channel:", err)
+				return
+			}
 		},
 	}
 )
@@ -224,67 +192,100 @@ func onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			log.Println("User:", user)
 			if m.Author.Username == user {
 				log.Println("User is in allowedUsers")
-				r, err := GetGPT3Response(m.Content, m.Author.Username)
+				r, err := GenerateGPT4Response(m.Content, m.Author.Username)
 				if err != nil {
-					log.Println("Failed to get GPT-3 response:", err)
+					log.Println("Failed to get OpenAI response:", err)
 					return
 				}
-				log.Println("GPT-3 response:", r)
+				log.Println("OpenAI response:", r)
 				log.Println("Channel ID:", m.ChannelID)
-				s.ChannelMessageSend(m.ChannelID, r)
+				_, err = s.ChannelMessageSend(m.ChannelID, r)
+				if err != nil {
+					log.Println("Failed to send message to channel:", err)
+					return
+				}
 			}
-
 		}
 	}
 
 	if m.Mentions != nil {
 		for _, mention := range m.Mentions {
 			if mention.ID == s.State.User.ID {
-				r, err := GetGPT3Response(m.Content, m.Author.Username)
+				r, err := GenerateGPT4Response(m.Content, m.Author.Username)
 				if err != nil {
 					if strings.Contains(err.Error(), "prompt is too long") {
-						s.ChannelMessageSend(m.ChannelID, "Message is too long!")
+						if _, err := s.ChannelMessageSend(m.ChannelID, "Message is too long!"); err != nil {
+							log.Println("Failed to send message to channel:", err)
+							return
+						}
 						return
 					}
 
 					if strings.Contains(err.Error(), "prompt is too short") {
-						s.ChannelMessageSend(m.ChannelID, "Message is too short!")
+						if _, err := s.ChannelMessageSend(m.ChannelID, "Message is too short!"); err != nil {
+							log.Println("Failed to send message to channel:", err)
+							return
+						}
 						return
 					}
 
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Brain broke :flushed: %v", err))
+					message, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Brain broke :flushed: %v", err))
+					if err != nil {
+						log.Println("Failed to send message to channel:", err)
+						return
+					}
+					_ = message
 					return
 				}
-				s.ChannelMessageSend(m.ChannelID, r)
+				_, err = s.ChannelMessageSend(m.ChannelID, r)
+				if err != nil {
+					log.Println("Failed to send message to channel:", err)
+					return
+				}
 			}
 		}
 	}
 
 	if strings.HasPrefix(strings.ToLower(m.Content), "lovibot") {
-		r, err := GetGPT3Response(m.Content, m.Author.Username)
+		r, err := GenerateGPT4Response(m.Content, m.Author.Username)
 		if err != nil {
 			if strings.Contains(err.Error(), "prompt is too long") {
-				s.ChannelMessageSend(m.ChannelID, "Message is too long!")
+				_, err := s.ChannelMessageSend(m.ChannelID, "Message is too long!")
+				if err != nil {
+					log.Println("Failed to send message to channel:", err)
+					return
+				}
 				return
 			}
 
 			if strings.Contains(err.Error(), "prompt is too short") {
-				s.ChannelMessageSend(m.ChannelID, "Message is too short!")
+				_, err := s.ChannelMessageSend(m.ChannelID, "Message is too short!")
+				if err != nil {
+					log.Println("Failed to send message to channel:", err)
+					return
+				}
 				return
 			}
 
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Brain broke :flushed: %v", err))
+			message, err := s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Brain broke :flushed: %v", err))
+			if err != nil {
+				log.Println("Failed to send message to channel:", err)
+				return
+			}
+			_ = message
 			return
 		}
-		s.ChannelMessageSend(m.ChannelID, r)
+		_, err = s.ChannelMessageSend(m.ChannelID, r)
+		if err != nil {
+			log.Println("Failed to send message to channel:", err)
+			return
+		}
 	}
 
 }
 
 func main() {
-	// Print the token for debugging purposes.
 	discordToken := config.DiscordToken
-	fmt.Println("Discord Token:", discordToken)
 
 	// Create a new Discord session using the provided bot token.
 	session, err := discordgo.New("Bot " + discordToken)
@@ -295,7 +296,7 @@ func main() {
 	// Add a handler function to the discordgo.Session that is triggered when a slash command is received.
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
-			log.Printf("Handling '%v' command.", i.ApplicationCommandData().Name)
+			log.Printf("Handling '%v' command. %+v", i.ApplicationCommandData().Name, i.ApplicationCommandData())
 			h(s, i)
 		}
 	})
@@ -314,11 +315,55 @@ func main() {
 		log.Fatalf("Cannot open the session: %v", err)
 	}
 
-	// Register the commands.
-	log.Println("Adding commands...")
+	// Remove all existing commands.
+	appID := session.State.User.ID
+	log.Println("Removing existing commands from all servers for the bot", appID)
+
+	// Remove the commands for guild 98905546077241344
+	log.Println("Removing commands for Killyoy's server...")
+	commands, err := session.ApplicationCommands(appID, "98905546077241344")
+	if err != nil {
+		log.Panicf("Cannot get commands for guild 98905546077241344: %v", err)
+	}
+	for _, v := range commands {
+		err := session.ApplicationCommandDelete(session.State.User.ID, "98905546077241344", v.ID)
+		if err != nil {
+			log.Panicf("Cannot delete '%v' command: %v", v.Name, err)
+		}
+		log.Printf("Deleted '%v' command.", v.Name)
+	}
+
+	// Remove the commands for guild 341001473661992962
+	log.Println("Removing commands for TheLovinator's server...")
+	commands, err = session.ApplicationCommands(appID, "341001473661992962")
+	if err != nil {
+		log.Panicf("Cannot get commands for guild 341001473661992962: %v", err)
+	}
+	for _, v := range commands {
+		err := session.ApplicationCommandDelete(session.State.User.ID, "341001473661992962", v.ID)
+		if err != nil {
+			log.Panicf("Cannot delete '%v' command: %v", v.Name, err)
+		}
+		log.Printf("Deleted '%v' command.", v.Name)
+	}
+
+	// Register the commands for guild 98905546077241344
+	log.Println("Registering commands for Killyoy's server...")
 	registeredCommands := make([]*discordgo.ApplicationCommand, len(commands))
 	for i, v := range commands {
-		cmd, err := session.ApplicationCommandCreate(session.State.User.ID, "", v)
+		cmd, err := session.ApplicationCommandCreate(session.State.User.ID, "98905546077241344", v)
+		if err != nil {
+			log.Panicf("Cannot create '%v' command: %v", v.Name, err)
+		}
+		registeredCommands[i] = cmd
+		log.Printf("Registered '%v' command.", cmd.Name)
+	}
+
+	// Register the commands for guild 341001473661992962
+	log.Println("Registering commands for TheLovinator's server...")
+	registeredCommands = make([]*discordgo.ApplicationCommand, len(commands))
+	for i, v := range commands {
+		cmd, err := session.ApplicationCommandCreate(session.State.User.ID, "341001473661992962", v)
 		if err != nil {
 			log.Panicf("Cannot create '%v' command: %v", v.Name, err)
 		}

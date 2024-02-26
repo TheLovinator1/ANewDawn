@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -11,20 +10,11 @@ import (
 /*
 Prompt is the Discord message that the user sent to the bot.
 */
-func GetGPT3Response(prompt string, author string) (string, error) {
+func GenerateGPT4Response(prompt string, author string) (string, error) {
 	openAIToken := config.OpenAIToken
 	if openAIToken == "" {
 		return "", fmt.Errorf("OPENAI_API_KEY is not set")
 	}
-
-	// Remove the mention from the prompt
-	prompt = strings.Replace(prompt, "@LoviBot ", "", -1)
-
-	// Remove the mention from the prompt
-	prompt = strings.Replace(prompt, "LoviBot ", "", -1)
-
-	// Remove the mention from the prompt
-	prompt = strings.Replace(prompt, "<@345000831499894795> ", "", -1)
 
 	// Print the prompt
 	fmt.Println("Prompt:", author, ":", prompt)
@@ -35,7 +25,7 @@ func GetGPT3Response(prompt string, author string) (string, error) {
 	}
 
 	// Check if the prompt is too short
-	if len(prompt) < 1 {
+	if len(prompt) < 10 {
 		return "", fmt.Errorf("prompt is too short")
 	}
 
@@ -71,7 +61,7 @@ func GetGPT3Response(prompt string, author string) (string, error) {
 
 	// Add additional information to the system message
 	if additionalInfo != "" {
-		systemMessage = fmt.Sprintf("%s %s", systemMessage, additionalInfo)
+		systemMessage = fmt.Sprintf("%s\n%s", systemMessage, additionalInfo)
 	}
 
 	// Print the system message
@@ -96,11 +86,10 @@ func GetGPT3Response(prompt string, author string) (string, error) {
 	)
 
 	if err != nil {
-		return "", fmt.Errorf("failed to get response from GPT-3: %v", err)
+		return "", fmt.Errorf("failed to get response from OpenAI: %w", err)
 	}
 
 	ourResponse := resp.Choices[0].Message.Content
-	ourResponse = strings.Replace(ourResponse, "As a space communist, ", "", -1)
 
 	fmt.Println("Response:", ourResponse)
 	return ourResponse, nil

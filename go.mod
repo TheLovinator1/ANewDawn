@@ -3,7 +3,7 @@ module github.com/TheLovinator1/ANewDawn
 go 1.22.1
 
 require (
-	github.com/bwmarrin/discordgo v0.27.1
+	github.com/bwmarrin/discordgo v0.28.1
 	github.com/sashabaranov/go-openai v1.20.4
 	github.com/vartanbeno/go-reddit/v2 v2.0.1
 )

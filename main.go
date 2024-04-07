@@ -321,11 +321,11 @@ func main() {
 
 	// Remove the commands for guild 98905546077241344
 	log.Println("Removing commands for Killyoy's server...")
-	commands, err := session.ApplicationCommands(appID, "98905546077241344")
+	old_commands, err := session.ApplicationCommands(appID, "98905546077241344")
 	if err != nil {
 		log.Panicf("Cannot get commands for guild 98905546077241344: %v", err)
 	}
-	for _, v := range commands {
+	for _, v := range old_commands {
 		err := session.ApplicationCommandDelete(session.State.User.ID, "98905546077241344", v.ID)
 		if err != nil {
 			log.Panicf("Cannot delete '%v' command: %v", v.Name, err)
@@ -335,11 +335,11 @@ func main() {
 
 	// Remove the commands for guild 341001473661992962
 	log.Println("Removing commands for TheLovinator's server...")
-	commands, err = session.ApplicationCommands(appID, "341001473661992962")
+	old_commands2, err := session.ApplicationCommands(appID, "341001473661992962")
 	if err != nil {
 		log.Panicf("Cannot get commands for guild 341001473661992962: %v", err)
 	}
-	for _, v := range commands {
+	for _, v := range old_commands2 {
 		err := session.ApplicationCommandDelete(session.State.User.ID, "341001473661992962", v.ID)
 		if err != nil {
 			log.Panicf("Cannot delete '%v' command: %v", v.Name, err)
@@ -361,13 +361,13 @@ func main() {
 
 	// Register the commands for guild 341001473661992962
 	log.Println("Registering commands for TheLovinator's server...")
-	registeredCommands = make([]*discordgo.ApplicationCommand, len(commands))
+	registeredCommands2 := make([]*discordgo.ApplicationCommand, len(commands))
 	for i, v := range commands {
 		cmd, err := session.ApplicationCommandCreate(session.State.User.ID, "341001473661992962", v)
 		if err != nil {
 			log.Panicf("Cannot create '%v' command: %v", v.Name, err)
 		}
-		registeredCommands[i] = cmd
+		registeredCommands2[i] = cmd
 		log.Printf("Registered '%v' command.", cmd.Name)
 	}
 

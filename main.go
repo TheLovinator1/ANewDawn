@@ -174,6 +174,11 @@ func onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	// Don't allow DMs
+	if m.GuildID == "" {
+		return
+	}
+
 	allowedUsers := []string{
 		"thelovinator",
 		"killyoy",

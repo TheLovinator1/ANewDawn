@@ -4,7 +4,7 @@ go 1.22.2
 
 require (
 	github.com/bwmarrin/discordgo v0.28.1
-	github.com/sashabaranov/go-openai v1.21.0
+	github.com/sashabaranov/go-openai v1.22.0
 	github.com/vartanbeno/go-reddit/v2 v2.0.1
 )
 

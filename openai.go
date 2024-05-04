@@ -19,12 +19,6 @@ func GenerateGPT4Response(prompt string, author string) (string, error) {
 	// Print the prompt
 	fmt.Println("Prompt:", author, ":", prompt)
 
-	// Check if the prompt is too long
-	if len(prompt) > 2048 {
-		return "", fmt.Errorf("prompt is too long")
-	}
-
-
 	// Add additional information to the system message
 	var additionalInfo string
 	switch author {

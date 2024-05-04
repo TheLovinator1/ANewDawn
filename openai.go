@@ -24,10 +24,6 @@ func GenerateGPT4Response(prompt string, author string) (string, error) {
 		return "", fmt.Errorf("prompt is too long")
 	}
 
-	// Check if the prompt is too short
-	if len(prompt) < 10 {
-		return "", fmt.Errorf("prompt is too short")
-	}
 
 	// Add additional information to the system message
 	var additionalInfo string

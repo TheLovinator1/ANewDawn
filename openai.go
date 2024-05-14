@@ -24,7 +24,6 @@ func GenerateGPT4Response(prompt string, author string) (string, error) {
 		return "", fmt.Errorf("prompt is too long")
 	}
 
-
 	// Add additional information to the system message
 	var additionalInfo string
 	switch author {
@@ -65,7 +64,7 @@ func GenerateGPT4Response(prompt string, author string) (string, error) {
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
-			Model: openai.GPT4TurboPreview,
+			Model: openai.GPT4o,
 			Messages: []openai.ChatCompletionMessage{
 				{
 					Role:    openai.ChatMessageRoleSystem,

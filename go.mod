@@ -9,12 +9,10 @@ require (
 )
 
 require (
-	github.com/golang/protobuf v1.2.0 // indirect
-	github.com/google/go-querystring v1.0.0 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
-	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b // indirect
-	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110 // indirect
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
-	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68 // indirect
-	google.golang.org/appengine v1.4.0 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/gorilla/websocket v1.5.1 // indirect
+	golang.org/x/crypto v0.23.0 // indirect
+	golang.org/x/net v0.25.0 // indirect
+	golang.org/x/oauth2 v0.20.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
 )

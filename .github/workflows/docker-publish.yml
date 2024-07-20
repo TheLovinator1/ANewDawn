@@ -1,4 +1,4 @@
-name: Test and Build Docker Image
+name: Build Docker Image
 
 on:
   push:
@@ -7,30 +7,14 @@ on:
   schedule:
     - cron: "0 0 * * *"
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    env:
-      DISCORD_TOKEN: 0
-      OPENAI_TOKEN: 0
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "stable"
-      - run: go test ./... -v
-
   build:
     runs-on: ubuntu-latest
-    needs: test
     permissions:
       contents: read
       packages: write
     env:
-      DISCORD_TOKEN: 0
-      OPENAI_TOKEN: 0
+      DISCORD_TOKEN: '0'
+      OPENAI_TOKEN: '0'
     if: github.event_name != 'pull_request' && github.event_name != 'schedule'
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}

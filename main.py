@@ -160,6 +160,7 @@ async def on_message(message: discord.Message) -> None:
         # Remove LoviBot: from the response
         if response:
             response = response.removeprefix("LoviBot:").strip()
+            response = response.removeprefix("**LoviBot:**").strip()
 
         if response:
             logger.info("Responding to message: %s with: %s", message.content, response)

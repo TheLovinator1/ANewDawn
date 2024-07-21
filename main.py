@@ -124,8 +124,8 @@ async def on_message(message: discord.Message) -> None:
     if bot.user:
         things_to_notify_on.extend((f"<@!{bot.user.id}>", f"<@{bot.user.id}>"))
 
-    # Only respond to messages that mention the bot or are a reply to a bot message
-    if any(thing.lower() in message_content for thing in things_to_notify_on) or message.reference:
+    # Only respond to messages that mention the bot
+    if any(thing.lower() in message_content for thing in things_to_notify_on):
         if message.reference:
             # Get the message that the current message is replying to
             message_id: int | None = message.reference.message_id

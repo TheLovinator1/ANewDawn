@@ -3,6 +3,10 @@
         "forgefilip",
         "forgor",
         "lovibot",
-        "plubplub"
+        "plubplub",
+        "pycodestyle",
+        "pydocstyle",
+        "PYTHONDONTWRITEBYTECODE",
+        "PYTHONUNBUFFERED"
     ]
 }

@@ -13,9 +13,9 @@ jobs:
       contents: read
       packages: write
     env:
-      DISCORD_TOKEN: '0'
-      OPENAI_TOKEN: '0'
-    if: github.event_name != 'pull_request' && github.event_name != 'schedule'
+      DISCORD_TOKEN: "0"
+      OPENAI_TOKEN: "0"
+    if: github.event_name != 'pull_request'
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true

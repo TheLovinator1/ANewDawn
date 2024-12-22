@@ -7,12 +7,11 @@ WORKDIR /app
 
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project
 
 # Copy the project into the image
-ADD main.py misc.py pyproject.toml uv.lock /app/
+ADD main.py misc.py pyproject.toml /app/
 
 # Sync the project
 RUN --mount=type=cache,target=/root/.cache/uv \

@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import TYPE_CHECKING
 
 import hikari
 import lightbulb
@@ -11,8 +10,7 @@ import openai
 from dotenv import load_dotenv
 from openai import OpenAI
 
-if TYPE_CHECKING:
-    from openai.types.chat.chat_completion import ChatCompletion
+from misc import chat, get_allowed_users, get_trigger_keywords
 
 logger: logging.Logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -26,49 +24,47 @@ if not discord_token or not openai_api_key:
     sys.exit(1)
 
 
-bot = lightbulb.BotApp(token=discord_token, intents=hikari.Intents.GUILD_MESSAGES | hikari.Intents.GUILD_MESSAGE_TYPING)
+bot = hikari.GatewayBot(
+    token=discord_token,
+    intents=hikari.Intents.GUILD_MESSAGES | hikari.Intents.GUILD_MESSAGE_TYPING,
+    logs="INFO",
+)
+bot_client: lightbulb.GatewayEnabledClient = lightbulb.client_from_app(bot)
+bot.subscribe(hikari.StartingEvent, bot_client.start)
+
 openai_client = OpenAI(api_key=openai_api_key)
 
 
-def chat(user_message: str) -> str | None:
-    """Chat with the bot using the OpenAI API.
+@bot_client.register(guilds=[hikari.Snowflake(98905546077241344), hikari.Snowflake(341001473661992962)])
+class Ask(
+    lightbulb.SlashCommand,
+    name="ask",
+    description="Ask the AI a question.",
+):
+    """A command to ask the AI a question."""
 
-    Args:
-        user_message: The message to send to OpenAI.
+    text: str = lightbulb.string("text", "The question or message to ask the AI.")
 
-    Returns:
-        The response from the AI model.
-    """
-    completion: ChatCompletion = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "developer",
-                "content": "You are in a Discord group chat with people above the age of 30. Use Discord Markdown to format messages if needed.",  # noqa: E501
-            },
-            {"role": "user", "content": user_message},
-        ],
-    )
-    response: str | None = completion.choices[0].message.content
-    logger.info("AI response: %s", response)
+    @lightbulb.invoke
+    async def invoke(self, ctx: lightbulb.Context) -> None:
+        """Handle the /ask command."""
+        user_message: str = self.text
 
-    return response
+        if not user_message:
+            await ctx.respond("You need to provide a question or message.")
+            return
 
+        try:
+            response: str | None = chat(user_message, openai_client)
+        except openai.OpenAIError as e:
+            logger.exception("An error occurred while chatting with the AI model.")
+            await ctx.respond(f"An error occurred: {e}")
+            return
 
-def get_allowed_users() -> list[str]:
-    """Get the list of allowed users to interact with the bot.
-
-    Returns:
-        The list of allowed users.
-    """
-    return [
-        "thelovinator",
-        "killyoy",
-        "forgefilip",
-        "plubplub",
-        "nobot",
-        "kao172",
-    ]
+        if response:
+            await ctx.respond(response)
+        else:
+            await ctx.respond("I forgor how to think 💀")
 
 
 @bot.listen(hikari.MessageCreateEvent)
@@ -89,13 +85,13 @@ async def on_message(event: hikari.MessageCreateEvent) -> None:
         return
 
     lowercase_message: str = incoming_message.lower() if incoming_message else ""
-    trigger_keywords: list[str] = get_trigger_keywords()
+    trigger_keywords: list[str] = get_trigger_keywords(bot)
     if any(trigger in lowercase_message for trigger in trigger_keywords):
         logger.info("Received message: %s from: %s", incoming_message, event.author.username)
 
         async with bot.rest.trigger_typing(event.channel_id):
             try:
-                response: str | None = chat(incoming_message)
+                response: str | None = chat(incoming_message, openai_client)
             except openai.OpenAIError as e:
                 logger.exception("An error occurred while chatting with the AI model.")
                 e.add_note(f"Message: {incoming_message}\nEvent: {event}\nWho: {event.author.username}")
@@ -112,18 +108,6 @@ async def on_message(event: hikari.MessageCreateEvent) -> None:
                 await bot.rest.create_message(event.channel_id, "I forgor how to think 💀")
 
 
-def get_trigger_keywords() -> list[str]:
-    """Get the list of trigger keywords to respond to.
-
-    Returns:
-        The list of trigger keywords.
-    """
-    bot_user: hikari.OwnUser | None = bot.get_me()
-    bot_mention_string: str = f"<@{bot_user.id}>" if bot_user else ""
-    notification_keywords: list[str] = ["lovibot", bot_mention_string]
-    return notification_keywords
-
-
 if __name__ == "__main__":
     logger.info("Starting the bot.")
-    bot.run(asyncio_debug=True, check_for_updates=True)
+    bot.run()

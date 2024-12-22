@@ -57,7 +57,7 @@ lint.isort.required-imports = ["from __future__ import annotations"]
 # Default is 88 characters
 line-length = 120
 
-pycodestyle.ignore-overlong-task-comments = true
+lint.pycodestyle.ignore-overlong-task-comments = true
 
 [tool.ruff.format]
 # https://docs.astral.sh/ruff/formatter/

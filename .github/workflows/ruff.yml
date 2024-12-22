@@ -1,0 +1,16 @@
+name: Ruff
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *' # Run every day at midnight
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-extras --dev
+      - run: uv run pytest -vv

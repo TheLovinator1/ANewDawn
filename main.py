@@ -5,65 +5,52 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-import discord
-from discord.ext import commands
+import hikari
+import lightbulb
+import openai
+from dotenv import load_dotenv
 from openai import OpenAI
 
 if TYPE_CHECKING:
     from openai.types.chat.chat_completion import ChatCompletion
 
-from dotenv import load_dotenv
-
 logger: logging.Logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-# Load the environment variables from the .env file
 load_dotenv(verbose=True)
 
-# Get the Discord token and OpenAI API key from the environment variables
 discord_token: str | None = os.getenv("DISCORD_TOKEN")
 openai_api_key: str | None = os.getenv("OPENAI_TOKEN")
 if not discord_token or not openai_api_key:
     logger.error("You haven't configured the bot correctly. Please set the environment variables.")
     sys.exit(1)
 
-# Use OpenAI for chatting with the bot
+
+bot = lightbulb.BotApp(token=discord_token, intents=hikari.Intents.GUILD_MESSAGES | hikari.Intents.GUILD_MESSAGE_TYPING)
 openai_client = OpenAI(api_key=openai_api_key)
 
-# Create a bot with the necessary intents
-# TODO(TheLovinator): We should only enable the intents we need  # noqa: TD003
-intents: discord.Intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
 
-
-@bot.event
-async def on_ready() -> None:  # noqa: RUF029
-    """Print a message when the bot is ready."""
-    logger.info("Logged on as %s", bot.user)
-
-
-def chat(msg: str) -> str | None:
+def chat(user_message: str) -> str | None:
     """Chat with the bot using the OpenAI API.
 
     Args:
-        msg: The message to send to the bot.
+        user_message: The message to send to OpenAI.
 
     Returns:
-        The response from the bot.
+        The response from the AI model.
     """
     completion: ChatCompletion = openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {
-                "role": "system",
-                "content": "You are a chatbot. Use Markdown to format your messages if you want.",
+                "role": "developer",
+                "content": "You are in a Discord group chat with people above the age of 30. Use Discord Markdown to format messages if needed.",  # noqa: E501
             },
-            {"role": "user", "content": msg},
+            {"role": "user", "content": user_message},
         ],
     )
     response: str | None = completion.choices[0].message.content
-    logger.info("AI response: %s from message: %s", response, msg)
+    logger.info("AI response: %s", response)
 
     return response
 
@@ -84,92 +71,59 @@ def get_allowed_users() -> list[str]:
     ]
 
 
-def remove_mentions(message_content: str) -> str:
-    """Remove mentions of the bot from the message content.
-
-    Args:
-        message_content: The message content to process.
-
-    Returns:
-        The message content without the mentions of the bot.
-    """
-    message_content = message_content.removeprefix("lovibot").strip()
-    message_content = message_content.removeprefix(",").strip()
-    if bot.user:
-        message_content = message_content.replace(f"<@!{bot.user.id}>", "").strip()
-        message_content = message_content.replace(f"<@{bot.user.id}>", "").strip()
-
-    return message_content
-
-
-@bot.event
-async def on_message(message: discord.Message) -> None:
+@bot.listen(hikari.MessageCreateEvent)
+async def on_message(event: hikari.MessageCreateEvent) -> None:
     """Respond to a message."""
-    logger.info("Message received: %s", message.content)
-
-    message_content: str = message.content.lower()
-
-    # Ignore messages from the bot itself to prevent an infinite loop
-    if message.author == bot.user:
+    if not event.is_human:
         return
 
     # Only allow certain users to interact with the bot
     allowed_users: list[str] = get_allowed_users()
-    if message.author.name not in allowed_users:
-        logger.info("Ignoring message from: %s", message.author.name)
+    if event.author.username not in allowed_users:
+        logger.info("Ignoring message from: %s", event.author.username)
         return
 
-    # Check if the message mentions the bot or starts with the bot's name
-    things_to_notify_on: list[str] = ["lovibot"]
-    if bot.user:
-        things_to_notify_on.extend((f"<@!{bot.user.id}>", f"<@{bot.user.id}>"))
+    incoming_message: str | None = event.message.content
+    if not incoming_message:
+        logger.error("No message content found in the event: %s", event)
+        return
 
-    # Only respond to messages that mention the bot
-    if any(thing.lower() in message_content for thing in things_to_notify_on):
-        if message.reference:
-            # Get the message that the current message is replying to
-            message_id: int | None = message.reference.message_id
-            if message_id is None:
-                return
+    lowercase_message: str = incoming_message.lower() if incoming_message else ""
+    trigger_keywords: list[str] = get_trigger_keywords()
+    if any(trigger in lowercase_message for trigger in trigger_keywords):
+        logger.info("Received message: %s from: %s", incoming_message, event.author.username)
 
+        async with bot.rest.trigger_typing(event.channel_id):
             try:
-                reply_message: discord.Message | None = await message.channel.fetch_message(message_id)
-            except discord.errors.NotFound:
+                response: str | None = chat(incoming_message)
+            except openai.OpenAIError as e:
+                logger.exception("An error occurred while chatting with the AI model.")
+                e.add_note(f"Message: {incoming_message}\nEvent: {event}\nWho: {event.author.username}")
+                await bot.rest.create_message(
+                    event.channel_id, f"An error occurred while chatting with the AI model. {e}"
+                )
                 return
 
-            # Get the message content and author
-            reply_content: str = reply_message.content
-            reply_author: str = reply_message.author.name
+            if response:
+                logger.info("Responding to message: %s with: %s", incoming_message, response)
+                await bot.rest.create_message(event.channel_id, response)
+            else:
+                logger.warning("No response from the AI model. Message: %s", incoming_message)
+                await bot.rest.create_message(event.channel_id, "I forgor how to think 💀")
 
-            # Add the reply message to the current message
-            message.content = f"{reply_author}: {reply_content}\n{message.author.name}: {message.content}"
 
-        # Remove the mention of the bot from the message
-        message_content = remove_mentions(message_content)
+def get_trigger_keywords() -> list[str]:
+    """Get the list of trigger keywords to respond to.
 
-        # Grab 10 messages before the current one to provide context
-        old_messages: list[str] = [
-            f"{old_message.author.name}: {old_message.content}"
-            async for old_message in message.channel.history(limit=10)
-        ]
-        old_messages.reverse()
-
-        # Get the response from OpenAI
-        response: str | None = chat("\n".join(old_messages) + "\n" + f"{message.author.name}: {message.content}")
-
-        # Remove LoviBot: from the response
-        if response:
-            response = response.removeprefix("LoviBot:").strip()
-            response = response.removeprefix("**LoviBot:**").strip()
-
-        if response:
-            logger.info("Responding to message: %s with: %s", message.content, response)
-            await message.channel.send(response)
-        else:
-            logger.warning("No response from the AI model. Message: %s", message.content)
-            await message.channel.send("I forgor how to think 💀")
+    Returns:
+        The list of trigger keywords.
+    """
+    bot_user: hikari.OwnUser | None = bot.get_me()
+    bot_mention_string: str = f"<@{bot_user.id}>" if bot_user else ""
+    notification_keywords: list[str] = ["lovibot", bot_mention_string]
+    return notification_keywords
 
 
 if __name__ == "__main__":
     logger.info("Starting the bot.")
-    bot.run(token=discord_token, root_logger=True)
+    bot.run(asyncio_debug=True, check_for_updates=True)

@@ -1,12 +1,25 @@
 {
     "cSpell.words": [
+        "anewdawn",
+        "asctime",
+        "audioop",
+        "docstrings",
+        "dotenv",
         "forgefilip",
         "forgor",
+        "hikari",
+        "isort",
+        "killyoy",
+        "levelname",
         "lovibot",
+        "Lovinator",
+        "nobot",
         "plubplub",
         "pycodestyle",
         "pydocstyle",
         "PYTHONDONTWRITEBYTECODE",
-        "PYTHONUNBUFFERED"
+        "PYTHONUNBUFFERED",
+        "testpaths",
+        "thelovinator"
     ]
 }

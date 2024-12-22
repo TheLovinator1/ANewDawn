@@ -4,10 +4,10 @@ version = "0.1.0"
 description = "My shit bot"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = ["discord-py", "openai", "python-dotenv"]
+dependencies = ["hikari-lightbulb", "hikari", "openai", "python-dotenv"]
 
 [dependency-groups]
-dev = ["ruff"]
+dev = ["pytest-asyncio", "pytest", "ruff"]
 
 [tool.ruff]
 # https://docs.astral.sh/ruff/linter/
@@ -43,14 +43,14 @@ lint.ignore = [
     "W191",   # Checks for indentation that uses tabs.
 ]
 
-# Default is 88 characters
-line-length = 120
-
 # https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html
 lint.pydocstyle.convention = "google"
 
 # Add "from __future__ import annotations" to all files
 lint.isort.required-imports = ["from __future__ import annotations"]
+
+# Default is 88 characters
+line-length = 120
 
 pycodestyle.ignore-overlong-task-comments = true
 
@@ -67,3 +67,14 @@ docstring-code-line-length = 20
     "S101",    # asserts allowed in tests...
     "S311",    # Standard pseudo-random generators are not suitable for cryptographic purposes
 ]
+
+# https://pytest-django.readthedocs.io/en/latest/
+[tool.pytest.ini_options]
+# Enable logging in the console.
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+
+# Only check /tests/ directory for tests.
+testpaths = ["tests"]

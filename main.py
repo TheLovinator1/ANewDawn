@@ -35,7 +35,7 @@ bot.subscribe(hikari.StartingEvent, bot_client.start)
 openai_client = OpenAI(api_key=openai_api_key)
 
 
-@bot_client.register(guilds=[hikari.Snowflake(98905546077241344), hikari.Snowflake(341001473661992962)])
+@bot_client.register()
 class Ask(
     lightbulb.SlashCommand,
     name="ask",
@@ -48,14 +48,20 @@ class Ask(
     @lightbulb.invoke
     async def invoke(self, ctx: lightbulb.Context) -> None:
         """Handle the /ask command."""
-        user_message: str = self.text
+        # Only allow certain users to interact with the bot
+        allowed_users: list[str] = get_allowed_users()
+        if ctx.user.username not in allowed_users:
+            logger.info("Ignoring message from: %s", ctx.user.username)
+            await ctx.respond("You are not allowed to use this command.", ephemeral=True)
+            return
 
-        if not user_message:
+        if not self.text:
+            logger.error("No question or message provided.")
             await ctx.respond("You need to provide a question or message.")
             return
 
         try:
-            response: str | None = chat(user_message, openai_client)
+            response: str | None = chat(self.text, openai_client)
         except openai.OpenAIError as e:
             logger.exception("An error occurred while chatting with the AI model.")
             await ctx.respond(f"An error occurred: {e}")

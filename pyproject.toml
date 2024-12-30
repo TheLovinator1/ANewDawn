@@ -5,18 +5,14 @@ description = "My shit bot"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "hikari-lightbulb>=3.0.0a15",
-    "hikari",
     "openai",
     "python-dotenv",
+    "discord-py",
+    "audioop-lts>=0.2.1",
 ]
 
 [dependency-groups]
-dev = [
-    "pytest-asyncio",
-    "pytest",
-    "ruff",
-]
+dev = ["pytest", "ruff"]
 
 [tool.ruff]
 # https://docs.astral.sh/ruff/linter/
@@ -87,3 +83,6 @@ log_cli_date_format = "%Y-%m-%d %H:%M:%S"
 
 # Only test files with the following suffixes.
 python_files = "test_*.py *_test.py *_tests.py"
+
+[tool.uv.sources]
+discord-py = { git = "https://github.com/Rapptz/discord.py", rev = "master" }

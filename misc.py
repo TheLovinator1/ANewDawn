@@ -4,7 +4,6 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import hikari
     from openai import OpenAI
     from openai.types.chat.chat_completion import ChatCompletion
 
@@ -26,18 +25,6 @@ def get_allowed_users() -> list[str]:
         "nobot",
         "kao172",
     ]
-
-
-def get_trigger_keywords(bot: hikari.GatewayBotAware) -> list[str]:
-    """Get the list of trigger keywords to respond to.
-
-    Returns:
-        The list of trigger keywords.
-    """
-    bot_user: hikari.OwnUser | None = bot.get_me()
-    bot_mention_string: str = f"<@{bot_user.id}>" if bot_user else ""
-    notification_keywords: list[str] = ["lovibot", bot_mention_string]
-    return notification_keywords
 
 
 def chat(user_message: str, openai_client: OpenAI) -> str | None:

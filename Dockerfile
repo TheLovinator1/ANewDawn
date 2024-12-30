@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN apt-get purge -y --auto-remove git
 
 # Copy the application files
-ADD main.py misc.py /app/
+ADD main.py misc.py settings.py /app/
 
 # Set the environment variables
 ENV PYTHONUNBUFFERED=1

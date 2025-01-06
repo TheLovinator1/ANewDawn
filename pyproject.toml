@@ -9,7 +9,7 @@ dependencies = [
     "discord-py",
     "numpy",
     "openai",
-    "opencv-python",
+    "opencv-contrib-python-headless",
     "python-dotenv",
 ]
 

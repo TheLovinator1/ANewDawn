@@ -3,10 +3,12 @@ from __future__ import annotations
 import datetime
 import io
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import cv2
 import discord
 import httpx
+import numpy as np
 import openai
 from discord import app_commands
 from openai import OpenAI
@@ -70,7 +72,7 @@ class LoviBotClient(discord.Client):
 
         incoming_message: str | None = message.content
         if not incoming_message:
-            logger.error("No message content found in the event: %s", message)
+            logger.info("No message content found in the event: %s", message)
             return
 
         lowercase_message: str = incoming_message.lower() if incoming_message else ""
@@ -220,6 +222,88 @@ async def create_image(interaction: discord.Interaction, prompt: str) -> None:
         logger.exception("An error occurred while creating the image.")
         await interaction.followup.send(f"An error occurred: {e}")
         return
+
+
+type ImageType = np.ndarray[Any, np.dtype[np.integer[Any] | np.floating[Any]]] | cv2.Mat
+
+
+def enhance_image(image: bytes) -> bytes:
+    """Enhance an image using OpenCV.
+
+    Args:
+        image (bytes): The image to enhance.
+
+    Returns:
+        bytes: The enhanced image.
+    """
+    # Read the image
+    nparr: ImageType = np.frombuffer(buffer=image, dtype=np.uint8)
+    img_np: ImageType = cv2.imdecode(buf=nparr, flags=cv2.IMREAD_COLOR)
+
+    # Convert to float32 for gamma correction
+    img_float: ImageType = img_np.astype(np.float32) / 255.0
+
+    # Apply gamma correction to brighten shadows (gamma < 1)
+    gamma: float = 0.7
+    img_gamma: ImageType = np.power(img_float, gamma)
+
+    # Convert back to uint8
+    img_gamma_8bit: ImageType = (img_gamma * 255).astype(np.uint8)
+
+    # Enhance contrast
+    enhanced: ImageType = cv2.convertScaleAbs(src=img_gamma_8bit, alpha=1.2, beta=10)
+
+    # Apply very light sharpening
+    kernel: ImageType = np.array([[-0.2, -0.2, -0.2], [-0.2, 2.8, -0.2], [-0.2, -0.2, -0.2]])
+    enhanced = cv2.filter2D(enhanced, -1, kernel)
+
+    # Encode the enhanced image to PNG
+    _, enhanced_png = cv2.imencode(".png", enhanced)
+
+    return enhanced_png.tobytes()
+
+
+@client.tree.context_menu(name="Enhance Image")
+@app_commands.allowed_installs(guilds=True, users=True)
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+async def enhance_image_command(interaction: discord.Interaction, message: discord.Message) -> None:
+    """Context menu command to enhance an image in a message."""
+    await interaction.response.defer()
+
+    # Check if message has attachments or embeds with images
+    image_url = None
+    if message.attachments:
+        for attachment in message.attachments:
+            if attachment.content_type and attachment.content_type.startswith("image/"):
+                image_url = attachment.url
+                break
+    elif message.embeds:
+        for embed in message.embeds:
+            if embed.image:
+                image_url: str | None = embed.image.url
+                break
+
+    if not image_url:
+        await interaction.followup.send("No image found in the message.", ephemeral=True)
+        return
+
+    try:
+        # Download the image
+        async with httpx.AsyncClient() as client:
+            response: httpx.Response = await client.get(image_url)
+            response.raise_for_status()
+            image_bytes: bytes = response.content
+
+        # Make the image brighter with OpenCV
+        enhanced_image: bytes = enhance_image(image_bytes)
+
+        timestamp: str = datetime.datetime.now(tz=datetime.UTC).isoformat()
+        file = discord.File(fp=io.BytesIO(enhanced_image), filename=f"enhanced-{timestamp}.png")
+        await interaction.followup.send("Enhanced version:", file=file)
+
+    except (httpx.HTTPError, openai.OpenAIError) as e:
+        logger.exception("Failed to enhance image")
+        await interaction.followup.send(f"An error occurred: {e}")
 
 
 if __name__ == "__main__":

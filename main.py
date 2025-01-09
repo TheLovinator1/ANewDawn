@@ -227,8 +227,41 @@ async def create_image(interaction: discord.Interaction, prompt: str) -> None:
 type ImageType = np.ndarray[Any, np.dtype[np.integer[Any] | np.floating[Any]]] | cv2.Mat
 
 
-def enhance_image(image: bytes) -> bytes:
-    """Enhance an image using OpenCV.
+def enhance_image1(image: bytes) -> bytes:
+    """Enhance an image using OpenCV histogram equalization.
+
+    Args:
+        image (bytes): The image to enhance.
+
+    Returns:
+        bytes: The enhanced image.
+    """
+    # Read the image
+    nparr: ImageType = np.frombuffer(buffer=image, dtype=np.uint8)
+    img_np: ImageType = cv2.imdecode(buf=nparr, flags=cv2.IMREAD_COLOR)
+
+    # Convert to LAB color space
+    lab: ImageType = cv2.cvtColor(img_np, cv2.COLOR_BGR2LAB)
+    l_channel, a, b = cv2.split(lab)
+
+    # Apply CLAHE to L channel
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    enhanced_l: ImageType = clahe.apply(l_channel)
+
+    # Merge channels
+    enhanced_lab: ImageType = cv2.merge([enhanced_l, a, b])
+
+    # Convert back to BGR
+    enhanced: ImageType = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+
+    # Encode the enhanced image to PNG
+    _, enhanced_png = cv2.imencode(".png", enhanced)
+
+    return enhanced_png.tobytes()
+
+
+def enhance_image2(image: bytes) -> bytes:
+    """Enhance an image using gamma correction and contrast enhancement.
 
     Args:
         image (bytes): The image to enhance.
@@ -256,6 +289,38 @@ def enhance_image(image: bytes) -> bytes:
     # Apply very light sharpening
     kernel: ImageType = np.array([[-0.2, -0.2, -0.2], [-0.2, 2.8, -0.2], [-0.2, -0.2, -0.2]])
     enhanced = cv2.filter2D(enhanced, -1, kernel)
+
+    # Encode the enhanced image to PNG
+    _, enhanced_png = cv2.imencode(".png", enhanced)
+
+    return enhanced_png.tobytes()
+
+
+def enhance_image3(image: bytes) -> bytes:
+    """Enhance an image using HSV color space manipulation.
+
+    Args:
+        image (bytes): The image to enhance.
+
+    Returns:
+        bytes: The enhanced image.
+    """
+    # Read the image
+    nparr: ImageType = np.frombuffer(buffer=image, dtype=np.uint8)
+    img_np: ImageType = cv2.imdecode(buf=nparr, flags=cv2.IMREAD_COLOR)
+
+    # Convert to HSV color space
+    hsv: ImageType = cv2.cvtColor(img_np, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+
+    # Enhance the Value channel
+    v = cv2.convertScaleAbs(v, alpha=1.3, beta=10)
+
+    # Merge the channels back
+    enhanced_hsv: ImageType = cv2.merge([h, s, v])
+
+    # Convert back to BGR
+    enhanced: ImageType = cv2.cvtColor(enhanced_hsv, cv2.COLOR_HSV2BGR)
 
     # Encode the enhanced image to PNG
     _, enhanced_png = cv2.imencode(".png", enhanced)
@@ -294,12 +359,18 @@ async def enhance_image_command(interaction: discord.Interaction, message: disco
             response.raise_for_status()
             image_bytes: bytes = response.content
 
-        # Make the image brighter with OpenCV
-        enhanced_image: bytes = enhance_image(image_bytes)
-
         timestamp: str = datetime.datetime.now(tz=datetime.UTC).isoformat()
-        file = discord.File(fp=io.BytesIO(enhanced_image), filename=f"enhanced-{timestamp}.png")
-        await interaction.followup.send("Enhanced version:", file=file)
+
+        enhanced_image1: bytes = enhance_image1(image_bytes)
+        file1 = discord.File(fp=io.BytesIO(enhanced_image1), filename=f"enhanced1-{timestamp}.png")
+
+        enhanced_image2: bytes = enhance_image2(image_bytes)
+        file2 = discord.File(fp=io.BytesIO(enhanced_image2), filename=f"enhanced2-{timestamp}.png")
+
+        enhanced_image3: bytes = enhance_image3(image_bytes)
+        file3 = discord.File(fp=io.BytesIO(enhanced_image3), filename=f"enhanced3-{timestamp}.png")
+
+        await interaction.followup.send("Enhanced version:", files=[file1, file2, file3])
 
     except (httpx.HTTPError, openai.OpenAIError) as e:
         logger.exception("Failed to enhance image")

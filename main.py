@@ -199,7 +199,7 @@ type ImageType = np.ndarray[Any, np.dtype[np.integer[Any] | np.floating[Any]]] |
 
 
 def enhance_image1(image: bytes) -> bytes:
-    """Enhance an image using OpenCV histogram equalization.
+    """Enhance an image using OpenCV histogram equalization with denoising.
 
     Args:
         image (bytes): The image to enhance.
@@ -210,6 +210,9 @@ def enhance_image1(image: bytes) -> bytes:
     # Read the image
     nparr: ImageType = np.frombuffer(image, np.uint8)
     img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    # Denoise the image with conservative settings
+    img_np = cv2.fastNlMeansDenoisingColored(img_np, None, 5, 5, 7, 21)
 
     # Convert to LAB color space
     lab: ImageType = cv2.cvtColor(img_np, cv2.COLOR_BGR2LAB)
@@ -232,7 +235,7 @@ def enhance_image1(image: bytes) -> bytes:
 
 
 def enhance_image2(image: bytes) -> bytes:
-    """Enhance an image using gamma correction and contrast enhancement.
+    """Enhance an image using gamma correction, contrast enhancement, and denoising.
 
     Args:
         image (bytes): The image to enhance.
@@ -243,6 +246,9 @@ def enhance_image2(image: bytes) -> bytes:
     # Read the image
     nparr: ImageType = np.frombuffer(image, np.uint8)
     img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    # Denoise the image with conservative settings
+    img_np = cv2.fastNlMeansDenoisingColored(img_np, None, 5, 5, 7, 21)
 
     # Convert to float32 for gamma correction
     img_float: ImageType = img_np.astype(np.float32) / 255.0
@@ -268,7 +274,7 @@ def enhance_image2(image: bytes) -> bytes:
 
 
 def enhance_image3(image: bytes) -> bytes:
-    """Enhance an image using HSV color space manipulation.
+    """Enhance an image using HSV color space manipulation with denoising.
 
     Args:
         image (bytes): The image to enhance.
@@ -279,6 +285,9 @@ def enhance_image3(image: bytes) -> bytes:
     # Read the image
     nparr: ImageType = np.frombuffer(image, np.uint8)
     img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    # Denoise the image with conservative settings
+    img_np = cv2.fastNlMeansDenoisingColored(img_np, None, 5, 5, 7, 21)
 
     # Convert to HSV color space
     hsv: ImageType = cv2.cvtColor(img_np, cv2.COLOR_BGR2HSV)

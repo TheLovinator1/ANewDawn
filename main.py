@@ -103,35 +103,6 @@ intents.message_content = True
 client = LoviBotClient(intents=intents)
 
 
-@client.tree.context_menu(name="Ask LoviBot")
-@app_commands.allowed_installs(guilds=True, users=True)
-@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-async def handle_ai_query(interaction: discord.Interaction, message: discord.Message) -> None:
-    """A context menu command to ask the AI a question."""
-    await interaction.response.defer()
-
-    user_name_lowercase: str = interaction.user.name.lower()
-    logger.info("Received command from: %s", user_name_lowercase)
-
-    allowed_users: list[str] = get_allowed_users()
-    if user_name_lowercase not in allowed_users:
-        logger.info("Ignoring message from: %s", user_name_lowercase)
-        await interaction.followup.send("You are not allowed to use this command.", ephemeral=True)
-        return
-
-    try:
-        response: str | None = chat(message.content, openai_client)
-    except openai.OpenAIError as e:
-        logger.exception("An error occurred while chatting with the AI model.")
-        await interaction.followup.send(f"An error occurred: {e}")
-        return
-
-    if response:
-        await interaction.followup.send(response)
-    else:
-        await interaction.followup.send("I forgor how to think 💀")
-
-
 @client.tree.command(name="ask", description="Ask LoviBot a question.")
 @app_commands.allowed_installs(guilds=True, users=True)
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)

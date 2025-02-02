@@ -278,7 +278,7 @@ def enhance_image1(image: bytes) -> bytes:
     enhanced: ImageType = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
     # Encode the enhanced image to WebP
-    _, enhanced_webp = cv2.imencode(".webp", enhanced)
+    _, enhanced_webp = cv2.imencode(".webp", enhanced, [cv2.IMWRITE_WEBP_QUALITY, 90])
 
     return enhanced_webp.tobytes()
 
@@ -317,7 +317,7 @@ def enhance_image2(image: bytes) -> bytes:
     enhanced = cv2.filter2D(enhanced, -1, kernel)
 
     # Encode the enhanced image to WebP
-    _, enhanced_webp = cv2.imencode(".webp", enhanced)
+    _, enhanced_webp = cv2.imencode(".webp", enhanced, [cv2.IMWRITE_WEBP_QUALITY, 90])
 
     return enhanced_webp.tobytes()
 
@@ -352,7 +352,7 @@ def enhance_image3(image: bytes) -> bytes:
     enhanced: ImageType = cv2.cvtColor(enhanced_hsv, cv2.COLOR_HSV2BGR)
 
     # Encode the enhanced image to WebP
-    _, enhanced_webp = cv2.imencode(".webp", enhanced)
+    _, enhanced_webp = cv2.imencode(".webp", enhanced, [cv2.IMWRITE_WEBP_QUALITY, 90])
 
     return enhanced_webp.tobytes()
 
@@ -388,7 +388,11 @@ async def enhance_image_command(interaction: discord.Interaction, message: disco
         enhanced_image3: bytes = enhance_image3(image_bytes)
         file3 = discord.File(fp=io.BytesIO(enhanced_image3), filename=f"enhanced3-{timestamp}.webp")
 
-        await interaction.followup.send("Enhanced version:", files=[file1, file2, file3])
+        files: list[discord.File] = [file1, file2, file3]
+        logger.info("Enhanced image: %s", image_url)
+        logger.info("Enhanced image files: %s", files)
+
+        await interaction.followup.send("Enhanced version:", files=files)
 
     except (httpx.HTTPError, openai.OpenAIError) as e:
         logger.exception("Failed to enhance image")

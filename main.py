@@ -10,6 +10,7 @@ import discord
 import httpx
 import numpy as np
 import openai
+import sentry_sdk
 from discord import app_commands
 from openai import OpenAI
 
@@ -19,6 +20,13 @@ from settings import Settings
 if TYPE_CHECKING:
     from openai.types import ImagesResponse
     from openai.types.image import Image
+
+
+sentry_sdk.init(
+    dsn="https://ebbd2cdfbd08dba008d628dad7941091@o4505228040339456.ingest.us.sentry.io/4507630719401984",
+    send_default_pii=True,
+)
+
 
 logger: logging.Logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -95,6 +103,46 @@ class LoviBotClient(discord.Client):
                 else:
                     logger.warning("No response from the AI model. Message: %s", incoming_message)
                     await message.channel.send("I forgor how to think 💀")
+
+    async def on_error(self, event_method: str, *args: list[Any], **kwargs: dict[str, Any]) -> None:
+        """Log errors that occur in the bot."""
+        # Log the error
+        logger.exception("An error occurred in %s with args: %s and kwargs: %s", event_method, args, kwargs)
+
+        # Add context to Sentry
+        with sentry_sdk.push_scope() as scope:
+            # Add event details
+            scope.set_tag("event_method", event_method)
+            scope.set_extra("args", args)
+            scope.set_extra("kwargs", kwargs)
+
+            # Add bot state
+            scope.set_tag("bot_user_id", self.user.id if self.user else "Unknown")
+            scope.set_tag("bot_user_name", str(self.user) if self.user else "Unknown")
+            scope.set_tag("bot_latency", self.latency)
+
+            # If specific arguments are available, extract and add details
+            if args:
+                interaction = next((arg for arg in args if isinstance(arg, discord.Interaction)), None)
+                if interaction:
+                    scope.set_extra("interaction_id", interaction.id)
+                    scope.set_extra("interaction_user", interaction.user.id)
+                    scope.set_extra("interaction_user_tag", str(interaction.user))
+                    scope.set_extra("interaction_command", interaction.command.name if interaction.command else None)
+                    scope.set_extra("interaction_channel", str(interaction.channel))
+                    scope.set_extra("interaction_guild", str(interaction.guild) if interaction.guild else None)
+
+                    # Add Sentry tags for interaction details
+                    scope.set_tag("interaction_id", interaction.id)
+                    scope.set_tag("interaction_user_id", interaction.user.id)
+                    scope.set_tag("interaction_user_tag", str(interaction.user))
+                    scope.set_tag("interaction_command", interaction.command.name if interaction.command else "None")
+                    scope.set_tag("interaction_channel_id", interaction.channel.id if interaction.channel else "None")
+                    scope.set_tag("interaction_channel_name", str(interaction.channel))
+                    scope.set_tag("interaction_guild_id", interaction.guild.id if interaction.guild else "None")
+                    scope.set_tag("interaction_guild_name", str(interaction.guild) if interaction.guild else "None")
+
+            sentry_sdk.capture_exception()
 
 
 # Everything enabled except `presences`, `members`, and `message_content`.

@@ -11,6 +11,7 @@ dependencies = [
     "openai",
     "opencv-contrib-python-headless",
     "python-dotenv",
+    "sentry-sdk",
 ]
 
 [dependency-groups]

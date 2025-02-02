@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import io
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 import cv2
@@ -429,18 +430,7 @@ async def enhance_image_command(interaction: discord.Interaction, message: disco
     await interaction.response.defer()
 
     # Check if message has attachments or embeds with images
-    image_url = None
-    if message.attachments:
-        for attachment in message.attachments:
-            if attachment.content_type and attachment.content_type.startswith("image/"):
-                image_url = attachment.url
-                break
-    elif message.embeds:
-        for embed in message.embeds:
-            if embed.image:
-                image_url: str | None = embed.image.url
-                break
-
+    image_url: str | None = extract_image_url(message)
     if not image_url:
         await interaction.followup.send("No image found in the message.", ephemeral=True)
         return
@@ -471,6 +461,45 @@ async def enhance_image_command(interaction: discord.Interaction, message: disco
     except (httpx.HTTPError, openai.OpenAIError) as e:
         logger.exception("Failed to enhance image")
         await interaction.followup.send(f"An error occurred: {e}")
+
+
+def extract_image_url(message: discord.Message) -> str | None:
+    """Extracts the first image URL from a given Discord message.
+
+    This function checks the attachments of the provided message for any image
+    attachments. If none are found, it then examines the message embeds to see if
+    they include an image. Finally, if no images are found in attachments or embeds,
+    the function searches the message content for any direct links ending in
+    common image file extensions (e.g., .png, .jpg, .jpeg, .gif, .webp).
+
+    Args:
+        message (discord.Message): The message from which to extract the image URL.
+
+    Returns:
+        str | None: The URL of the first image found, or None if no image is found.
+    """
+    image_url: str | None = None
+    if message.attachments:
+        for attachment in message.attachments:
+            if attachment.content_type and attachment.content_type.startswith("image/"):
+                image_url = attachment.url
+                break
+
+    elif message.embeds:
+        for embed in message.embeds:
+            if embed.image:
+                image_url = embed.image.url
+                break
+
+    if not image_url:
+        match: re.Match[str] | None = re.search(
+            pattern=r"(https?://[^\s]+(\.png|\.jpg|\.jpeg|\.gif|\.webp))",
+            string=message.content,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            image_url = match.group(0)
+    return image_url
 
 
 if __name__ == "__main__":

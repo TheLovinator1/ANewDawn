@@ -226,7 +226,7 @@ def enhance_image1(image: bytes) -> bytes:
     enhanced: ImageType = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
     # Encode the enhanced image to WebP
-    _, enhanced_webp = cv2.imencode(".webp", enhanced, [cv2.IMWRITE_WEBP_QUALITY, 90])
+    _, enhanced_webp = cv2.imencode(".webp", enhanced)
 
     return enhanced_webp.tobytes()
 
@@ -262,7 +262,7 @@ def enhance_image2(image: bytes) -> bytes:
     enhanced = cv2.filter2D(enhanced, -1, kernel)
 
     # Encode the enhanced image to WebP
-    _, enhanced_webp = cv2.imencode(".webp", enhanced, [cv2.IMWRITE_WEBP_QUALITY, 90])
+    _, enhanced_webp = cv2.imencode(".webp", enhanced)
 
     return enhanced_webp.tobytes()
 
@@ -294,7 +294,7 @@ def enhance_image3(image: bytes) -> bytes:
     enhanced: ImageType = cv2.cvtColor(enhanced_hsv, cv2.COLOR_HSV2BGR)
 
     # Encode the enhanced image to WebP
-    _, enhanced_webp = cv2.imencode(".webp", enhanced, [cv2.IMWRITE_WEBP_QUALITY, 90])
+    _, enhanced_webp = cv2.imencode(".webp", enhanced)
 
     return enhanced_webp.tobytes()
 

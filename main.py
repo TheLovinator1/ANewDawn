@@ -205,11 +205,11 @@ def enhance_image1(image: bytes) -> bytes:
         image (bytes): The image to enhance.
 
     Returns:
-        bytes: The enhanced image.
+        bytes: The enhanced image in WebP format.
     """
     # Read the image
-    nparr: ImageType = np.frombuffer(buffer=image, dtype=np.uint8)
-    img_np: ImageType = cv2.imdecode(buf=nparr, flags=cv2.IMREAD_COLOR)
+    nparr: ImageType = np.frombuffer(image, np.uint8)
+    img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     # Convert to LAB color space
     lab: ImageType = cv2.cvtColor(img_np, cv2.COLOR_BGR2LAB)
@@ -225,10 +225,10 @@ def enhance_image1(image: bytes) -> bytes:
     # Convert back to BGR
     enhanced: ImageType = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
-    # Encode the enhanced image to PNG
-    _, enhanced_png = cv2.imencode(".png", enhanced)
+    # Encode the enhanced image to WebP
+    _, enhanced_webp = cv2.imencode(".webp", enhanced, [cv2.IMWRITE_WEBP_QUALITY, 90])
 
-    return enhanced_png.tobytes()
+    return enhanced_webp.tobytes()
 
 
 def enhance_image2(image: bytes) -> bytes:
@@ -238,11 +238,11 @@ def enhance_image2(image: bytes) -> bytes:
         image (bytes): The image to enhance.
 
     Returns:
-        bytes: The enhanced image.
+        bytes: The enhanced image in WebP format.
     """
     # Read the image
-    nparr: ImageType = np.frombuffer(buffer=image, dtype=np.uint8)
-    img_np: ImageType = cv2.imdecode(buf=nparr, flags=cv2.IMREAD_COLOR)
+    nparr: ImageType = np.frombuffer(image, np.uint8)
+    img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     # Convert to float32 for gamma correction
     img_float: ImageType = img_np.astype(np.float32) / 255.0
@@ -255,16 +255,16 @@ def enhance_image2(image: bytes) -> bytes:
     img_gamma_8bit: ImageType = (img_gamma * 255).astype(np.uint8)
 
     # Enhance contrast
-    enhanced: ImageType = cv2.convertScaleAbs(src=img_gamma_8bit, alpha=1.2, beta=10)
+    enhanced: ImageType = cv2.convertScaleAbs(img_gamma_8bit, alpha=1.2, beta=10)
 
     # Apply very light sharpening
     kernel: ImageType = np.array([[-0.2, -0.2, -0.2], [-0.2, 2.8, -0.2], [-0.2, -0.2, -0.2]])
     enhanced = cv2.filter2D(enhanced, -1, kernel)
 
-    # Encode the enhanced image to PNG
-    _, enhanced_png = cv2.imencode(".png", enhanced)
+    # Encode the enhanced image to WebP
+    _, enhanced_webp = cv2.imencode(".webp", enhanced, [cv2.IMWRITE_WEBP_QUALITY, 90])
 
-    return enhanced_png.tobytes()
+    return enhanced_webp.tobytes()
 
 
 def enhance_image3(image: bytes) -> bytes:
@@ -274,11 +274,11 @@ def enhance_image3(image: bytes) -> bytes:
         image (bytes): The image to enhance.
 
     Returns:
-        bytes: The enhanced image.
+        bytes: The enhanced image in WebP format.
     """
     # Read the image
-    nparr: ImageType = np.frombuffer(buffer=image, dtype=np.uint8)
-    img_np: ImageType = cv2.imdecode(buf=nparr, flags=cv2.IMREAD_COLOR)
+    nparr: ImageType = np.frombuffer(image, np.uint8)
+    img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     # Convert to HSV color space
     hsv: ImageType = cv2.cvtColor(img_np, cv2.COLOR_BGR2HSV)
@@ -293,10 +293,10 @@ def enhance_image3(image: bytes) -> bytes:
     # Convert back to BGR
     enhanced: ImageType = cv2.cvtColor(enhanced_hsv, cv2.COLOR_HSV2BGR)
 
-    # Encode the enhanced image to PNG
-    _, enhanced_png = cv2.imencode(".png", enhanced)
+    # Encode the enhanced image to WebP
+    _, enhanced_webp = cv2.imencode(".webp", enhanced, [cv2.IMWRITE_WEBP_QUALITY, 90])
 
-    return enhanced_png.tobytes()
+    return enhanced_webp.tobytes()
 
 
 @client.tree.context_menu(name="Enhance Image")
@@ -333,13 +333,13 @@ async def enhance_image_command(interaction: discord.Interaction, message: disco
         timestamp: str = datetime.datetime.now(tz=datetime.UTC).isoformat()
 
         enhanced_image1: bytes = enhance_image1(image_bytes)
-        file1 = discord.File(fp=io.BytesIO(enhanced_image1), filename=f"enhanced1-{timestamp}.png")
+        file1 = discord.File(fp=io.BytesIO(enhanced_image1), filename=f"enhanced1-{timestamp}.webp")
 
         enhanced_image2: bytes = enhance_image2(image_bytes)
-        file2 = discord.File(fp=io.BytesIO(enhanced_image2), filename=f"enhanced2-{timestamp}.png")
+        file2 = discord.File(fp=io.BytesIO(enhanced_image2), filename=f"enhanced2-{timestamp}.webp")
 
         enhanced_image3: bytes = enhance_image3(image_bytes)
-        file3 = discord.File(fp=io.BytesIO(enhanced_image3), filename=f"enhanced3-{timestamp}.png")
+        file3 = discord.File(fp=io.BytesIO(enhanced_image3), filename=f"enhanced3-{timestamp}.webp")
 
         await interaction.followup.send("Enhanced version:", files=[file1, file2, file3])
 

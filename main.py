@@ -108,7 +108,7 @@ class LoviBotClient(discord.Client):
     async def on_error(self, event_method: str, *args: list[Any], **kwargs: dict[str, Any]) -> None:
         """Log errors that occur in the bot."""
         # Log the error
-        logger.exception("An error occurred in %s with args: %s and kwargs: %s", event_method, args, kwargs)
+        logger.error("An error occurred in %s with args: %s and kwargs: %s", event_method, args, kwargs)
 
         # Add context to Sentry
         with sentry_sdk.push_scope() as scope:

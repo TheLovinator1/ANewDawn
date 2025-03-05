@@ -88,4 +88,4 @@ log_cli_date_format = "%Y-%m-%d %H:%M:%S"
 python_files = "test_*.py *_test.py *_tests.py"
 
 [tool.uv.sources]
-discord-py = {git = "https://github.com/Rapptz/discord.py", rev = "973bb5089ffa60f2db5244aca52b1c6cab43661f"}
+discord-py = {git = "https://github.com/Rapptz/discord.py", rev = "460d188359ff43419b74a15b3376095d1443d19c"}

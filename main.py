@@ -46,12 +46,7 @@ class LoviBotClient(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self) -> None:
-        """Setup the bot client."""
-        # Copy the global commands to all the guilds so we don't have to wait 1 hour for the commands to be available
-        self.tree.copy_global_to(guild=discord.Object(id=98905546077241344))  # KillYoy's server
-        self.tree.copy_global_to(guild=discord.Object(id=341001473661992962))  # TheLovinator's server
-
-        # Sync commands globally
+        """Sync commands globaly."""
         await self.tree.sync()
 
     async def on_ready(self) -> None:

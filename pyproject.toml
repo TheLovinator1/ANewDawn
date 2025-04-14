@@ -18,13 +18,16 @@ dependencies = [
 dev = ["pytest", "ruff"]
 
 [tool.ruff]
-# https://docs.astral.sh/ruff/linter/
 preview = true
-
-# Enable all rules
+fix = true
+unsafe-fixes = true
 lint.select = ["ALL"]
+lint.fixable = ["ALL"]
+lint.pydocstyle.convention = "google"
+lint.isort.required-imports = ["from __future__ import annotations"]
+lint.pycodestyle.ignore-overlong-task-comments = true
+line-length = 120
 
-# Ignore some rules
 lint.ignore = [
     "CPY001", # Checks for the absence of copyright notices within Python files.
     "D100",   # Checks for undocumented public module definitions.
@@ -51,19 +54,8 @@ lint.ignore = [
     "W191",   # Checks for indentation that uses tabs.
 ]
 
-# https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html
-lint.pydocstyle.convention = "google"
-
-# Add "from __future__ import annotations" to all files
-lint.isort.required-imports = ["from __future__ import annotations"]
-
-lint.pycodestyle.ignore-overlong-task-comments = true
-
-# Default is 88 characters
-line-length = 120
 
 [tool.ruff.format]
-# https://docs.astral.sh/ruff/formatter/
 docstring-code-format = true
 docstring-code-line-length = 20
 
@@ -78,11 +70,8 @@ docstring-code-line-length = 20
 
 # https://pytest-django.readthedocs.io/en/latest/
 [tool.pytest.ini_options]
-# Enable logging in the console.
 log_cli = true
 log_cli_level = "INFO"
 log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
 log_cli_date_format = "%Y-%m-%d %H:%M:%S"
-
-# Only test files with the following suffixes.
 python_files = "test_*.py *_test.py *_tests.py"

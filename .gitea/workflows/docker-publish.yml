@@ -12,7 +12,7 @@ on:
 cache:
   enabled: true
   dir: ""
-  host: "192.168.1.127"
+  host: "gitea_act_runner"
   port: 8088
 
 jobs:
@@ -63,6 +63,8 @@ jobs:
 
       # Check if the Python code needs formatting
       - run: ruff format --check --verbose
+
+      # Lint Dockerfile
       - run: docker build --check .
 
       # Extract metadata (tags, labels) from Git reference and GitHub events for Docker

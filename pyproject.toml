@@ -86,6 +86,3 @@ log_cli_date_format = "%Y-%m-%d %H:%M:%S"
 
 # Only test files with the following suffixes.
 python_files = "test_*.py *_test.py *_tests.py"
-
-[tool.uv.sources]
-discord-py = {git = "https://github.com/Rapptz/discord.py", rev = "26855160f8a8f0dfade609cce6b1bc97f8b8fa14"}

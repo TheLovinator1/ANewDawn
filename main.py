@@ -4,7 +4,7 @@ import datetime
 import io
 import logging
 import re
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import cv2
 import discord
@@ -17,11 +17,6 @@ from openai import OpenAI
 
 from misc import chat, get_allowed_users
 from settings import Settings
-
-if TYPE_CHECKING:
-    from openai.types import ImagesResponse
-    from openai.types.image import Image
-
 
 sentry_sdk.init(
     dsn="https://ebbd2cdfbd08dba008d628dad7941091@o4505228040339456.ingest.us.sentry.io/4507630719401984",
@@ -187,61 +182,6 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         await interaction.followup.send(response)
     else:
         await interaction.followup.send(f"I forgor how to think 💀\nText: {text}")
-
-
-@client.tree.command(name="create_image", description="Create an image using a prompt.")
-@app_commands.describe(prompt="The prompt to generate the image.")
-@app_commands.allowed_installs(guilds=True, users=True)
-@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-async def create_image(interaction: discord.Interaction, prompt: str) -> None:
-    """A command to create an image using the AI."""
-    await interaction.response.defer()
-
-    if not prompt:
-        logger.error("No prompt provided.")
-        await interaction.followup.send("You need to provide a prompt.", ephemeral=True)
-        return
-
-    # Only allow certain users to interact with the bot
-    allowed_users: list[str] = ["thelovinator", "killyoy"]
-
-    user_name_lowercase: str = interaction.user.name.lower()
-    logger.info("Received image creation command from: %s", user_name_lowercase)
-
-    if user_name_lowercase not in allowed_users:
-        logger.info("Ignoring image creation command from: %s", user_name_lowercase)
-        await interaction.followup.send("You are not allowed to use this command.", ephemeral=True)
-        return
-
-    try:
-        response: ImagesResponse = openai_client.images.generate(prompt=prompt, model="dall-e-3", quality="hd")
-        data: list[Image] = response.data
-        if not data:
-            await interaction.followup.send("No image data found in the response.")
-            return
-
-        image_url: str | None = data[0].url
-        if not image_url:
-            await interaction.followup.send("No image URL found in the response.")
-            return
-
-        # Download the image with httpx
-        async with httpx.AsyncClient() as client:
-            image_response: httpx.Response = await client.get(image_url)
-            image_response.raise_for_status()
-
-        # Send the image as a file
-        image_bytes: bytes = image_response.content
-
-        iso8601_timestamp: str = datetime.datetime.now(tz=datetime.UTC).isoformat()
-
-        file = discord.File(fp=io.BytesIO(image_bytes), filename=f"image-{iso8601_timestamp}.png")
-        await interaction.followup.send(file=file)
-
-    except openai.OpenAIError as e:
-        logger.exception("An error occurred while creating the image.")
-        await interaction.followup.send(f"An error occurred: {e}")
-        return
 
 
 type ImageType = np.ndarray[Any, np.dtype[np.integer[Any] | np.floating[Any]]] | cv2.Mat

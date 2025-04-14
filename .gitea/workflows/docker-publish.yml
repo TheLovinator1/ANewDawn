@@ -9,12 +9,6 @@ on:
   schedule:
     - cron: "@daily"
 
-cache:
-  enabled: true
-  dir: ""
-  host: "gitea_act_runner"
-  port: 8088
-
 jobs:
   docker:
     runs-on: ubuntu-latest
@@ -87,5 +81,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max

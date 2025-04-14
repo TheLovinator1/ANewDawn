@@ -21,7 +21,6 @@ jobs:
     env:
       DISCORD_TOKEN: "0"
       OPENAI_TOKEN: "0"
-    if: gitea.event_name != 'pull_request'
     steps:
       # GitHub Container Registry
       - uses: https://github.com/docker/login-action@v3
@@ -48,6 +47,7 @@ jobs:
         with:
           image: tonistiigi/binfmt:master
           platforms: linux/amd64,linux/arm64
+          cache-image: false
 
       # Set up Buildx so we can build multi-arch images
       - uses: https://github.com/docker/setup-buildx-action@v3

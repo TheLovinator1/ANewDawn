@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # check=error=true;experimental=all
-FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:python3.13-bookworm-slim@sha256:73c021c3fe7264924877039e8a449ad3bb380ec89214282301affa9b2f863c5d
+FROM --platform=$BUILDPLATFORM ghcr.io/astral-sh/uv:python3.13-bookworm-slim@sha256:61f9b961f6fd782bdf4ce6e29a643aee2b7ef742149585903de371070c09f4b3
 
 # Change the working directory to the `app` directory
 WORKDIR /app

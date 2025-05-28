@@ -38,11 +38,11 @@ def chat(user_message: str, openai_client: OpenAI) -> str | None:
         The response from the AI model.
     """
     completion: ChatCompletion = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4.5-preview",
         messages=[
             {
                 "role": "developer",
-                "content": "You are in a Discord group chat with people above the age of 30. Use Discord Markdown to format messages if needed.",  # noqa: E501
+                "content": "You are in a Discord group chat. Use Discord Markdown to format messages if needed.",
             },
             {"role": "user", "content": user_message},
         ],

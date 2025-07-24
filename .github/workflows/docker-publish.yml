@@ -54,14 +54,14 @@ jobs:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
           images: ghcr.io/thelovinator1/anewdawn
-          tags: type=raw,value=latest,enable=${{ gitea.ref == format('refs/heads/{0}', 'master') }}
+          tags: type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'master') }}
 
       # Build and push the Docker image
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ gitea.event_name != 'pull_request' }}
+          push: ${{ github.event_name != 'pull_request' }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
           annotations: ${{ steps.meta.outputs.annotations }}

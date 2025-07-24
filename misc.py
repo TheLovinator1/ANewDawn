@@ -42,7 +42,7 @@ def chat(user_message: str, openai_client: OpenAI) -> str | None:
         messages=[
             {
                 "role": "system",
-                "content": "You are in a Discord group chat. People can ask you questions. Use Discord Markdown to format messages if needed.",
+                "content": "You are in a Discord group chat. People can ask you questions. Use Discord Markdown to format messages if needed.",  # noqa: E501
             },
             {"role": "user", "content": user_message},
         ],

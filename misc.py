@@ -38,7 +38,7 @@ def chat(user_message: str, openai_client: OpenAI) -> str | None:
         The response from the AI model.
     """
     completion: ChatCompletion = openai_client.chat.completions.create(
-        model="gpt-4.1",
+        model="gpt-5-chat-latest",
         messages=[
             {
                 "role": "system",

@@ -237,6 +237,13 @@ def chat(  # noqa: PLR0913, PLR0917
                 context += "Licka and Sniffa emojis are dogs that lick and sniff things. For example anime feet, butts and sweat.\n"
                 context += "If you want to use them, just send the emoji itself without any extra text.\n"
 
+                # Stickers
+                context += "You can use the following URL to send stickers: https://media.discordapp.net/stickers/{sticker_id}.webp?size=4096\n"
+                context += "Remember to only send the URL if you want to use the sticker in your message.\n"
+                context += "You can use the following stickers:\n"
+                for sticker in current_channel.guild.stickers:
+                    context += f"  - {sticker!r}\n"
+
     context += "The bot is in the following channels:\n"
     if all_channels_in_guild:
         for c in all_channels_in_guild:

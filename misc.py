@@ -102,7 +102,7 @@ def should_respond_without_trigger(channel_id: str, user: str, threshold_seconds
     Returns:
         True if the bot should respond without trigger keywords, False otherwise.
     """
-    if channel_id not in last_trigger_time:
+    if channel_id not in last_trigger_time or user not in last_trigger_time[channel_id]:
         return False
 
     last_trigger: datetime.datetime = last_trigger_time[channel_id][user]

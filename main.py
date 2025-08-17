@@ -66,7 +66,6 @@ class LoviBotClient(discord.Client):
         # Only allow certain users to interact with the bot
         allowed_users: list[str] = get_allowed_users()
         if message.author.name not in allowed_users:
-            logger.info("Ignoring message from: %s", message.author.name)
             return
 
         incoming_message: str | None = message.content
@@ -175,15 +174,14 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         await interaction.followup.send("You need to provide a question or message.", ephemeral=True)
         return
 
-    # Only allow certain users to interact with the bot
-    allowed_users: list[str] = get_allowed_users()
-
     user_name_lowercase: str = interaction.user.name.lower()
     logger.info("Received command from: %s", user_name_lowercase)
 
+    # Only allow certain users to interact with the bot
+    allowed_users: list[str] = get_allowed_users()
     if user_name_lowercase not in allowed_users:
         logger.info("Ignoring message from: %s", user_name_lowercase)
-        await interaction.followup.send("You are not allowed to use this command.", ephemeral=True)
+        await interaction.followup.send("You are not allowed to use this command.")
         return
 
     try:

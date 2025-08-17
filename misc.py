@@ -229,14 +229,12 @@ def chat(  # noqa: PLR0913, PLR0917
         "Recent context starts here:\n"
         f"{recent_context}\n"
         "Recent context ends here.\n"
-        "User message starts here:\n"
-        f"User: {user_message}"
-        "User message ends here.\n"
     )
 
     resp: Response = openai_client.responses.create(
         model="gpt-5-chat-latest",
-        input=[{"role": "user", "content": prompt}],
+        instructions=prompt,
+        input=user_message,
     )
     response: str | None = resp.output_text
     logger.info("AI response: %s", response)

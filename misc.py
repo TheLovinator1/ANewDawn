@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from discord.guild import GuildChannel
     from discord.interactions import InteractionChannel
     from openai import OpenAI
-    from openai.types.chat.chat_completion import ChatCompletion
+    from openai.types.responses import Response
 
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -194,11 +194,11 @@ def chat(  # noqa: PLR0913, PLR0917
         "User message ends here.\n"
     )
 
-    completion: ChatCompletion = openai_client.chat.completions.create(
+    resp: Response = openai_client.responses.create(
         model="gpt-5-chat-latest",
-        messages=[{"role": "system", "content": prompt}],
+        input=[{"role": "user", "content": prompt}],
     )
-    response: str | None = completion.choices[0].message.content
+    response: str | None = resp.output_text
     logger.info("AI response: %s", response)
 
     return response

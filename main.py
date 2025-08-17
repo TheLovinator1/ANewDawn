@@ -46,7 +46,7 @@ class LoviBotClient(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self) -> None:
-        """Sync commands globaly."""
+        """Sync commands globally."""
         await self.tree.sync()
 
     async def on_ready(self) -> None:

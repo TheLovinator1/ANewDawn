@@ -15,7 +15,7 @@ import sentry_sdk
 from discord import app_commands
 from openai import OpenAI
 
-from misc import chat, get_allowed_users
+from misc import add_message_to_memory, chat, get_allowed_users
 from settings import Settings
 
 sentry_sdk.init(
@@ -74,14 +74,17 @@ class LoviBotClient(discord.Client):
             logger.info("No message content found in the event: %s", message)
             return
 
+        # Add the message to memory
+        add_message_to_memory(str(message.channel.id), message.author.name, incoming_message)
+
         lowercase_message: str = incoming_message.lower() if incoming_message else ""
-        trigger_keywords: list[str] = ["lovibot", "<@345000831499894795>"]
+        trigger_keywords: list[str] = ["lovibot", "@lovibot", "<@345000831499894795>", "grok", "@grok"]
         if any(trigger in lowercase_message for trigger in trigger_keywords):
             logger.info("Received message: %s from: %s", incoming_message, message.author.name)
 
             async with message.channel.typing():
                 try:
-                    response: str | None = chat(incoming_message, openai_client)
+                    response: str | None = chat(incoming_message, openai_client, str(message.channel.id))
                 except openai.OpenAIError as e:
                     logger.exception("An error occurred while chatting with the AI model.")
                     e.add_note(f"Message: {incoming_message}\nEvent: {message}\nWho: {message.author.name}")
@@ -167,7 +170,7 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         return
 
     try:
-        response: str | None = chat(text, openai_client)
+        response: str | None = chat(text, openai_client, str(interaction.channel_id))
     except openai.OpenAIError as e:
         logger.exception("An error occurred while chatting with the AI model.")
         await interaction.followup.send(f"An error occurred: {e}")
@@ -343,6 +346,8 @@ def extract_image_url(message: discord.Message) -> str | None:
     the function searches the message content for any direct links ending in
     common image file extensions (e.g., .png, .jpg, .jpeg, .gif, .webp).
 
+    Additionally, it handles Twitter image URLs and normalizes them to a standard format.
+
     Args:
         message (discord.Message): The message from which to extract the image URL.
 
@@ -364,12 +369,16 @@ def extract_image_url(message: discord.Message) -> str | None:
 
     if not image_url:
         match: re.Match[str] | None = re.search(
-            pattern=r"(https?://[^\s]+(\.png|\.jpg|\.jpeg|\.gif|\.webp))",
-            string=message.content,
-            flags=re.IGNORECASE,
+            r"(https?://[^\s]+\.(png|jpg|jpeg|gif|webp)(\?[^\s]*)?)", message.content, re.IGNORECASE
         )
         if match:
             image_url = match.group(0)
+
+    # Handle Twitter image URLs
+    if image_url and "pbs.twimg.com/media/" in image_url:
+        # Normalize Twitter image URLs to the highest quality format
+        image_url = re.sub(r"\?format=[^&]+&name=[^&]+", "?format=jpg&name=orig", image_url)
+
     return image_url
 
 

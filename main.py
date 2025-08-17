@@ -92,7 +92,10 @@ class LoviBotClient(discord.Client):
                     return
 
                 if response:
+                    response = f"{message.author.name}: {message.content}\n\n{response}"
+
                     logger.info("Responding to message: %s with: %s", incoming_message, response)
+
                     await message.channel.send(response)
                 else:
                     logger.warning("No response from the AI model. Message: %s", incoming_message)
@@ -177,6 +180,10 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         return
 
     if response:
+        response = f"`{text}`\n\n{response}"
+
+        logger.info("Responding to message: %s with: %s", text, response)
+
         await interaction.followup.send(response)
     else:
         await interaction.followup.send(f"I forgor how to think 💀\nText: {text}")

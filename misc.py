@@ -218,25 +218,6 @@ def chat(  # noqa: PLR0913, PLR0917
                 for emoji in server_emojis:
                     context += f"  - {emoji!s}\n"
 
-                context += "\n You can create bigger emojis by combining them:\n"
-                context += "For example if you want to create a big rat emoji, you can combine the following emojis. The picture is three by three:\n"
-                context += "  - <:rat1:1405292421742334116>: + <:rat2:1405292423373918258> + <:rat3:1405292425446031400>\n"
-                context += "  - <:rat4:1405292427777933354>: + <:rat5:1405292430210891949>: + <:rat6:1405292433411145860>:\n"
-                context += "  - <:rat7:1405292434883084409>: + <:rat8:1405292442181304320>: + <:rat9:1405292443619819631>:\n"
-                context += "This will create a picture of Jane Does ass."
-                context += " You can use it when we talk about coom, Zenless Zone Zero (ZZZ) or other related topics."
-                context += "\n"
-
-                context += "The following emojis needs to be on the same line to form a bigger emoji:\n"
-                context += "<a:phibiscarf2:1050306159023759420><a:phibiscarf_mid:1050306153084637194><a:phibiscarf1:1050306156997918802>\n"
-
-                context += "If you are using emoji combos, ONLY send the emoji itself and don't add unnecessary text.\n"
-                context += "Remember that combo emojis need to be on a separate line to form a bigger emoji.\n"
-                context += "But remember to not overuse them, remember that the user still can see the old message, so no need to write it again.\n"
-                context += "Also remember that you cant put code blocks around emojis.\n"
-                context += "Licka and Sniffa emojis are dogs that lick and sniff things. For example anime feet, butts and sweat.\n"
-                context += "If you want to use them, just send the emoji itself without any extra text.\n"
-
                 # Stickers
                 context += "You can use the following URL to send stickers: https://media.discordapp.net/stickers/{sticker_id}.webp?size=4096\n"
                 context += "Remember to only send the URL if you want to use the sticker in your message.\n"
@@ -252,6 +233,25 @@ def chat(  # noqa: PLR0913, PLR0917
     context += "\nThe bot responds to the following users:\n"
     for user_id in allowed_users:
         context += f"  - User ID: {user_id}\n"
+
+    context += "\n You can create bigger emojis by combining them:\n"
+    context += "For example if you want to create a big rat emoji, you can combine the following emojis. The picture is three by three:\n"
+    context += "  - <:rat1:1405292421742334116>: + <:rat2:1405292423373918258> + <:rat3:1405292425446031400>\n"
+    context += "  - <:rat4:1405292427777933354>: + <:rat5:1405292430210891949>: + <:rat6:1405292433411145860>:\n"
+    context += "  - <:rat7:1405292434883084409>: + <:rat8:1405292442181304320>: + <:rat9:1405292443619819631>:\n"
+    context += "This will create a picture of Jane Does ass."
+    context += " You can use it when we talk about coom, Zenless Zone Zero (ZZZ) or other related topics."
+    context += "\n"
+
+    context += "The following emojis needs to be on the same line to form a bigger emoji:\n"
+    context += "<a:phibiscarf2:1050306159023759420><a:phibiscarf_mid:1050306153084637194><a:phibiscarf1:1050306156997918802>\n"
+
+    context += "If you are using emoji combos, ONLY send the emoji itself and don't add unnecessary text.\n"
+    context += "Remember that combo emojis need to be on a separate line to form a bigger emoji.\n"
+    context += "But remember to not overuse them, remember that the user still can see the old message, so no need to write it again.\n"
+    context += "Also remember that you cant put code blocks around emojis.\n"
+    context += "Licka and Sniffa emojis are dogs that lick and sniff things. For example anime feet, butts and sweat.\n"
+    context += "If you want to use them, just send the emoji itself without any extra text.\n"
 
     prompt: str = (
         "You are in a Discord group chat. People can ask you questions.\n"

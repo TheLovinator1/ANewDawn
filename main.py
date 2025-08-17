@@ -15,7 +15,7 @@ import sentry_sdk
 from discord import app_commands
 from openai import OpenAI
 
-from misc import add_message_to_memory, chat, get_allowed_users
+from misc import add_message_to_memory, chat, get_allowed_users, should_respond_without_trigger, update_trigger_time
 from settings import Settings
 
 sentry_sdk.init(
@@ -79,8 +79,17 @@ class LoviBotClient(discord.Client):
 
         lowercase_message: str = incoming_message.lower() if incoming_message else ""
         trigger_keywords: list[str] = ["lovibot", "@lovibot", "<@345000831499894795>", "grok", "@grok"]
-        if any(trigger in lowercase_message for trigger in trigger_keywords):
-            logger.info("Received message: %s from: %s", incoming_message, message.author.name)
+        has_trigger_keyword: bool = any(trigger in lowercase_message for trigger in trigger_keywords)
+        should_respond: bool = has_trigger_keyword or should_respond_without_trigger(str(message.channel.id), message.author.name)
+
+        if should_respond:
+            # Update trigger time if they used a trigger keyword
+            if has_trigger_keyword:
+                update_trigger_time(str(message.channel.id), message.author.name)
+
+            logger.info(
+                "Received message: %s from: %s (trigger: %s, recent: %s)", incoming_message, message.author.name, has_trigger_keyword, not has_trigger_keyword
+            )
 
             async with message.channel.typing():
                 try:

@@ -7,9 +7,11 @@ requires-python = ">=3.13"
 dependencies = [
     "audioop-lts",
     "discord-py",
+    "httpx>=0.28.1",
     "numpy",
     "openai",
     "opencv-contrib-python-headless",
+    "psutil>=7.0.0",
     "python-dotenv",
     "sentry-sdk",
 ]
@@ -26,7 +28,6 @@ lint.fixable = ["ALL"]
 lint.pydocstyle.convention = "google"
 lint.isort.required-imports = ["from __future__ import annotations"]
 lint.pycodestyle.ignore-overlong-task-comments = true
-line-length = 120
 
 lint.ignore = [
     "CPY001", # Checks for the absence of copyright notices within Python files.
@@ -53,6 +54,7 @@ lint.ignore = [
     "Q003",   # Checks for strings that include escaped quotes, and suggests changing the quote style to avoid the need to escape them.
     "W191",   # Checks for indentation that uses tabs.
 ]
+line-length = 160
 
 
 [tool.ruff.format]

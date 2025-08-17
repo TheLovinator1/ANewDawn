@@ -84,7 +84,14 @@ class LoviBotClient(discord.Client):
 
             async with message.channel.typing():
                 try:
-                    response: str | None = chat(incoming_message, openai_client, str(message.channel.id))
+                    response: str | None = chat(
+                        user_message=incoming_message,
+                        openai_client=openai_client,
+                        current_channel=message.channel,
+                        user=message.author,
+                        allowed_users=allowed_users,
+                        all_channels_in_guild=message.guild.channels if message.guild else None,
+                    )
                 except openai.OpenAIError as e:
                     logger.exception("An error occurred while chatting with the AI model.")
                     e.add_note(f"Message: {incoming_message}\nEvent: {message}\nWho: {message.author.name}")
@@ -92,8 +99,6 @@ class LoviBotClient(discord.Client):
                     return
 
                 if response:
-                    response = f"{message.author.name}: {message.content}\n\n{response}"
-
                     logger.info("Responding to message: %s with: %s", incoming_message, response)
 
                     await message.channel.send(response)
@@ -173,7 +178,14 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         return
 
     try:
-        response: str | None = chat(text, openai_client, str(interaction.channel_id))
+        response: str | None = chat(
+            user_message=text,
+            openai_client=openai_client,
+            current_channel=interaction.channel,
+            user=interaction.user,
+            allowed_users=allowed_users,
+            all_channels_in_guild=interaction.guild.channels if interaction.guild else None,
+        )
     except openai.OpenAIError as e:
         logger.exception("An error occurred while chatting with the AI model.")
         await interaction.followup.send(f"An error occurred: {e}")
@@ -375,9 +387,7 @@ def extract_image_url(message: discord.Message) -> str | None:
                 break
 
     if not image_url:
-        match: re.Match[str] | None = re.search(
-            r"(https?://[^\s]+\.(png|jpg|jpeg|gif|webp)(\?[^\s]*)?)", message.content, re.IGNORECASE
-        )
+        match: re.Match[str] | None = re.search(r"(https?://[^\s]+\.(png|jpg|jpeg|gif|webp)(\?[^\s]*)?)", message.content, re.IGNORECASE)
         if match:
             image_url = match.group(0)
 

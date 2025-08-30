@@ -143,6 +143,14 @@ def extra_context(current_channel: MessageableChannel | InteractionChannel | Non
 
     # Current date and time
     context += f"Current date and time: {datetime.datetime.now(tz=datetime.UTC)} UTC, but user is in CEST or CET\n"
+    context += "Some fun day names that you can use:\n"
+    context += "- Monday: Milf Monday\n"
+    context += "- Tuesday: Tomboy Tuesday, Titties Tuesday\n"
+    context += "- Wednesday: Wife Wednesday, Waifu Wednesday\n"
+    context += "- Thursday: Tomboy Thursday, Titties Thursday\n"
+    context += "- Friday: Frieren Friday, Femboy Friday, Fern Friday, Flat Friday, Fredagsmys\n"
+    context += "- Saturday: Lördagsgodis\n"
+    context += "- Sunday: Going to church\n"
 
     # Channel name and server
     if isinstance(current_channel, channel.TextChannel):

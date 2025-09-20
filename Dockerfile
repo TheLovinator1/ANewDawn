@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-install-project
 
 # Copy the application files
-COPY main.py misc.py settings.py /app/
+COPY main.py misc.py /app/
 
 # Set the environment variables
 ENV PYTHONUNBUFFERED=1

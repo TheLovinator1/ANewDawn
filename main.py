@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import io
 import logging
+import os
 from typing import TYPE_CHECKING, Any, TypeVar
 
 import cv2
@@ -12,10 +13,9 @@ import numpy as np
 import openai
 import sentry_sdk
 from discord import Forbidden, HTTPException, NotFound, app_commands
-from openai import AsyncOpenAI
+from dotenv import load_dotenv
 
 from misc import add_message_to_memory, chat, get_allowed_users, get_raw_images_from_text, should_respond_without_trigger, update_trigger_time
-from settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -29,12 +29,10 @@ sentry_sdk.init(
 logger: logging.Logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-settings: Settings = Settings.from_env()
-discord_token: str = settings.discord_token
-openai_api_key: str = settings.openai_api_key
 
+load_dotenv(verbose=True)
 
-openai_client = AsyncOpenAI(api_key=openai_api_key)
+discord_token: str = os.getenv("DISCORD_TOKEN", "")
 
 
 class LoviBotClient(discord.Client):
@@ -96,7 +94,6 @@ class LoviBotClient(discord.Client):
                 try:
                     response: str | None = await chat(
                         user_message=incoming_message,
-                        openai_client=openai_client,
                         current_channel=message.channel,
                         user=message.author,
                         allowed_users=allowed_users,
@@ -116,45 +113,20 @@ class LoviBotClient(discord.Client):
                     logger.warning("No response from the AI model. Message: %s", incoming_message)
                     await message.channel.send("I forgor how to think 💀")
 
-    async def on_error(self, event_method: str, *args: list[Any], **kwargs: dict[str, Any]) -> None:
+    async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401, PLR6301
         """Log errors that occur in the bot."""
         # Log the error
         logger.error("An error occurred in %s with args: %s and kwargs: %s", event_method, args, kwargs)
+        sentry_sdk.capture_exception()
 
-        # Add context to Sentry
-        with sentry_sdk.push_scope() as scope:
-            # Add event details
-            scope.set_tag("event_method", event_method)
-            scope.set_extra("args", args)
-            scope.set_extra("kwargs", kwargs)
-
-            # Add bot state
-            scope.set_tag("bot_user_id", self.user.id if self.user else "Unknown")
-            scope.set_tag("bot_user_name", str(self.user) if self.user else "Unknown")
-            scope.set_tag("bot_latency", self.latency)
-
-            # If specific arguments are available, extract and add details
-            if args:
-                interaction = next((arg for arg in args if isinstance(arg, discord.Interaction)), None)
-                if interaction:
-                    scope.set_extra("interaction_id", interaction.id)
-                    scope.set_extra("interaction_user", interaction.user.id)
-                    scope.set_extra("interaction_user_tag", str(interaction.user))
-                    scope.set_extra("interaction_command", interaction.command.name if interaction.command else None)
-                    scope.set_extra("interaction_channel", str(interaction.channel))
-                    scope.set_extra("interaction_guild", str(interaction.guild) if interaction.guild else None)
-
-                    # Add Sentry tags for interaction details
-                    scope.set_tag("interaction_id", interaction.id)
-                    scope.set_tag("interaction_user_id", interaction.user.id)
-                    scope.set_tag("interaction_user_tag", str(interaction.user))
-                    scope.set_tag("interaction_command", interaction.command.name if interaction.command else "None")
-                    scope.set_tag("interaction_channel_id", interaction.channel.id if interaction.channel else "None")
-                    scope.set_tag("interaction_channel_name", str(interaction.channel))
-                    scope.set_tag("interaction_guild_id", interaction.guild.id if interaction.guild else "None")
-                    scope.set_tag("interaction_guild_name", str(interaction.guild) if interaction.guild else "None")
-
-            sentry_sdk.capture_exception()
+        # If the error is in on_message, notify the channel
+        if event_method == "on_message" and args:
+            message = args[0]
+            if isinstance(message, discord.Message):
+                try:
+                    await message.channel.send("An error occurred while processing your message. The incident has been logged.")
+                except (Forbidden, HTTPException, NotFound):
+                    logger.exception("Failed to send error message to channel %s", message.channel.id)
 
 
 # Everything enabled except `presences`, `members`, and `message_content`.
@@ -189,7 +161,6 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
     try:
         response: str | None = await chat(
             user_message=text,
-            openai_client=openai_client,
             current_channel=interaction.channel,
             user=interaction.user,
             allowed_users=allowed_users,

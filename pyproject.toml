@@ -7,17 +7,15 @@ requires-python = ">=3.13"
 dependencies = [
     "audioop-lts",
     "discord-py",
-    "httpx>=0.28.1",
+    "httpx",
     "numpy",
     "openai",
     "opencv-contrib-python-headless",
-    "psutil>=7.0.0",
+    "psutil",
+    "pydantic-ai-slim[duckduckgo,openai]",
     "python-dotenv",
     "sentry-sdk",
 ]
-
-[dependency-groups]
-dev = ["pytest", "ruff"]
 
 [tool.ruff]
 preview = true

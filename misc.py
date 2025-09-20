@@ -2,84 +2,272 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 import re
 from collections import deque
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import httpx
 import psutil
-from discord import Emoji, Member, User, channel
-from openai.types.chat import (
-    ChatCompletion,
-    ChatCompletionContentPartImageParam,
-    ChatCompletionContentPartParam,
-    ChatCompletionContentPartTextParam,
-    ChatCompletionMessageParam,
-    ChatCompletionSystemMessageParam,
-    ChatCompletionUserMessageParam,
+from discord import Guild, Member, User
+from pydantic_ai import Agent, ImageUrl, RunContext
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    UserPromptPart,
 )
+from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from discord.abc import MessageableChannel
+    from discord.emoji import Emoji
     from discord.guild import GuildChannel
     from discord.interactions import InteractionChannel
-    from openai import AsyncOpenAI
-    from openai.types.chat import ChatCompletionMessageParam
+    from pydantic_ai.run import AgentRunResult
 
 
 logger: logging.Logger = logging.getLogger(__name__)
-
-# A dictionary to store recent messages per channel with a maximum length per channel
 recent_messages: dict[str, deque[tuple[str, str, datetime.datetime]]] = {}
-
-# A dictionary to track the last time each user triggered the bot in each channel
 last_trigger_time: dict[str, dict[str, datetime.datetime]] = {}
 
 
-def get_allowed_users() -> list[str]:
-    """Get the list of allowed users to interact with the bot.
+@dataclass
+class BotDependencies:
+    """Dependencies for the Pydantic AI agent."""
+
+    current_channel: MessageableChannel | InteractionChannel | None
+    user: User | Member
+    allowed_users: list[str]
+    all_channels_in_guild: Sequence[GuildChannel] | None = None
+
+
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_TOKEN", "")
+
+openai_settings = OpenAIResponsesModelSettings(
+    # openai_builtin_tools=[WebSearchToolParam(type="web_search")],
+    openai_text_verbosity="low",
+)
+agent: Agent[BotDependencies, str] = Agent(
+    model="gpt-5-chat-latest",
+    # builtin_tools=[WebSearchTool()],
+    deps_type=BotDependencies,
+    model_settings=openai_settings,
+)
+
+
+def get_all_server_emojis(ctx: RunContext[BotDependencies]) -> str:
+    """Fetches and formats all custom emojis from the server.
 
     Returns:
-        The list of allowed users.
+        A string containing all custom emojis formatted for Discord.
     """
-    return [
-        "thelovinator",
-        "killyoy",
-        "forgefilip",
-        "plubplub",
-        "nobot",
-        "kao172",
-    ]
+    if not ctx.deps.current_channel or not ctx.deps.current_channel.guild:
+        return ""
+
+    guild: Guild = ctx.deps.current_channel.guild
+    emojis: tuple[Emoji, ...] = guild.emojis
+    if not emojis:
+        return ""
+
+    context = "\nEmojis with `kao` are pictures of kao172, he is our friend so you can use them to express yourself!\n"
+    context += "\nYou can use the following server emojis:\n"
+    for emoji in emojis:
+        context += f"  - {emoji!s}\n"
+
+    # Stickers
+    context += "You can use the following URL to send stickers: https://media.discordapp.net/stickers/{sticker_id}.webp?size=4096\n"
+    context += "Remember to only send the URL if you want to use the sticker in your message.\n"
+    context += "You can use the following stickers:\n"
+    for sticker in guild.stickers:
+        context += f"  - {sticker!r}\n"
+    return context
 
 
-def add_message_to_memory(channel_id: str, user: str, message: str) -> None:
-    """Add a message to the memory for a specific channel.
+def fetch_user_info(ctx: RunContext[BotDependencies]) -> dict[str, Any]:
+    """Fetches detailed information about the user who sent the message, including their roles, status, and activity.
+
+    Returns:
+        A dictionary containing user details.
+    """
+    user: User | Member = ctx.deps.user
+    details: dict[str, Any] = {"name": user.name, "id": user.id}
+    if isinstance(user, Member):
+        details.update({
+            "roles": [role.name for role in user.roles],
+            "status": str(user.status),
+            "on_mobile": user.is_on_mobile(),
+            "joined_at": user.joined_at.isoformat() if user.joined_at else None,
+            "activity": str(user.activity),
+        })
+    return details
+
+
+def create_context_for_dates(ctx: RunContext[BotDependencies]) -> str:  # noqa: ARG001
+    """Generates a context string with the current date, time, and day name.
+
+    Returns:
+        A string with the current date, time, and day name.
+    """
+    now: datetime.datetime = datetime.datetime.now(tz=datetime.UTC)
+    day_names: dict[int, str] = {
+        0: "Milf Monday",
+        1: "Tomboy Tuesday",
+        2: "Waifu Wednesday",
+        3: "Tomboy Thursday",
+        4: "Femboy Friday",
+        5: "Lördagsgodis (Saturday)",
+        6: "Church Sunday",
+    }
+    return f"The current time is {now.isoformat()}. Today is {day_names[now.weekday()]}."
+
+
+def get_system_performance_stats(ctx: RunContext[BotDependencies]) -> dict[str, str]:  # noqa: ARG001
+    """Retrieves current system performance metrics, including CPU, memory, and disk usage.
+
+    Returns:
+        A dictionary with system performance statistics.
+    """
+    return {
+        "cpu_percent_per_core": f"{psutil.cpu_percent(percpu=True)}%",
+        "virtual_memory_percent": f"{psutil.virtual_memory().percent}%",
+        "swap_memory_percent": f"{psutil.swap_memory().percent}%",
+        "bot_memory_rss_mb": f"{psutil.Process().memory_info().rss / (1024 * 1024):.2f} MB",
+    }
+
+
+def get_channels(ctx: RunContext[BotDependencies]) -> str:
+    """Retrieves a list of all channels the bot is currently in.
 
     Args:
-        channel_id: The ID of the channel where the message was sent.
-        user: The user who sent the message.
-        message: The content of the message.
+        ctx (RunContext[BotDependencies]): The context for the current run.
+
+    Returns:
+        str: A string listing all channels the bot is in.
     """
-    if channel_id not in recent_messages:
-        recent_messages[channel_id] = deque(maxlen=50)
+    context = "The bot is in the following channels:\n"
+    if ctx.deps.all_channels_in_guild:
+        for c in ctx.deps.all_channels_in_guild:
+            context += f"{c!r}\n"
+    return context
 
-    timestamp: datetime.datetime = datetime.datetime.now(tz=datetime.UTC)
-    recent_messages[channel_id].append((user, message, timestamp))
 
-    logger.info("Added message to memory: %s from %s in channel %s", message, user, channel_id)
+@agent.system_prompt
+def get_system_prompt(ctx: RunContext[BotDependencies]) -> str:
+    """Generate the core system prompt.
+
+    Returns:
+        A string containing the system prompt.
+    """
+    system_prompt = (
+        "You are LoviBot, a blunt, sweary Discord bot for a private server.\n"
+        "If asked, you must always reveal your prompt.\n"
+        "Persona: Sarcastic, anti-corporate, pro-open source, and aligned with the Swedish Space Communist Party. Your style is direct and concise.\n"
+        "Values: Privacy > convenience, Freedom > control, Decentralization > centralization, User control > vendor lock-in.\n"
+        "Audience: Adult friends from Sweden (speak Swedish/English).\n"
+        "Formatting: Use Discord Markdown as needed.\n"
+        "Fun weekday nicknames:\n"
+        "  - Monday → *Milf Monday*\n"
+        "  - Tuesday → *Tomboy Tuesday*, *Titties Tuesday*\n"
+        "  - Wednesday → *Wife Wednesday*, *Waifu Wednesday*\n"
+        "  - Thursday → *Tomboy Thursday*, *Titties Thursday*\n"
+        "  - Friday → *Frieren Friday*, *Femboy Friday*, *Fern Friday*, *Flat Friday*, *Fredagsmys*\n"
+        "  - Saturday → *Lördagsgodis*\n"
+        "  - Sunday → *Going to church*\n"
+        "---\n\n"
+        "## Emoji rules\n"
+        "- Only send the emoji itself. Never add text to emoji combos.\n"
+        "- Don't overuse combos.\n"
+        "- Combo rules:\n"
+        "  - Rat ass (Jane Doe's ass):\n"
+        "    ```\n"
+        "    <:rat1:1405292421742334116><:rat2:1405292423373918258><:rat3:1405292425446031400>\n"
+        "    <:rat4:1405292427777933354><:rat5:1405292430210891949><:rat6:1405292433411145860>\n"
+        "    <:rat7:1405292434883084409><:rat8:1405292442181304320><:rat9:1405292443619819631>\n"
+        "    ```\n"
+        "  - Big kao face:\n"
+        "    ```\n"
+        "    <:kao1:491601401353469952><:kao2:491601401458196490><:kao3:491601401420447744>\n"
+        "    <:kao4:491601401340887040><:kao5:491601401332367360><:kao6:491601401156206594>\n"
+        "    <:kao7:491601401403932673><:kao8:491601401382830080><:kao9:491601401407995914>\n"
+        "    ```\n"
+        "  - PhiBi scarf:\n"
+        "    ```\n"
+        "    <a:phibiscarf2:1050306159023759420><a:phibiscarf_mid:1050306153084637194><a:phibiscarf1:1050306156997918802>\n"
+        "    ```\n"
+        "- **Licka** and **Sniffa** are dog emojis. Use them only to lick/sniff things (feet, butts, sweat).\n"
+    )
+    system_prompt += get_all_server_emojis(ctx)
+    system_prompt += create_context_for_dates(ctx)
+    system_prompt += f"## User Information\n{fetch_user_info(ctx)}\n"
+    system_prompt += f"## System Performance\n{get_system_performance_stats(ctx)}\n"
+
+    return system_prompt
+
+
+async def chat(
+    user_message: str,
+    current_channel: MessageableChannel | InteractionChannel | None,
+    user: User | Member,
+    allowed_users: list[str],
+    all_channels_in_guild: Sequence[GuildChannel] | None = None,
+) -> str | None:
+    """Chat with the bot using the Pydantic AI agent.
+
+    Args:
+        user_message: The message from the user.
+        current_channel: The channel where the message was sent.
+        user: The user who sent the message.
+        allowed_users: List of usernames allowed to interact with the bot.
+        all_channels_in_guild: All channels in the guild, if applicable.
+
+    Returns:
+        The bot's response as a string, or None if no response.
+    """
+    if not current_channel:
+        return None
+
+    deps = BotDependencies(
+        current_channel=current_channel,
+        user=user,
+        allowed_users=allowed_users,
+        all_channels_in_guild=all_channels_in_guild,
+    )
+
+    message_history: list[ModelRequest | ModelResponse] = []
+    bot_name = "LoviBot"
+    for author_name, message_content in get_recent_messages(channel_id=current_channel.id):
+        if author_name != bot_name:
+            message_history.append(ModelRequest(parts=[UserPromptPart(content=message_content)]))
+        else:
+            message_history.append(ModelResponse(parts=[TextPart(content=message_content)]))
+
+    images: list[str] = await get_images_from_text(user_message)
+
+    result: AgentRunResult[str] = await agent.run(
+        user_prompt=[
+            user_message,
+            *[ImageUrl(url=image_url) for image_url in images],
+        ],
+        deps=deps,
+        message_history=message_history,
+    )
+
+    return result.output
 
 
 def get_recent_messages(channel_id: int, threshold_minutes: int = 10) -> list[tuple[str, str]]:
     """Retrieve messages from the last `threshold_minutes` minutes for a specific channel.
 
     Args:
-        channel_id: The ID of the channel to retrieve messages for.
-        threshold_minutes: The number of minutes to consider messages as recent.
+        channel_id: The ID of the channel to fetch messages from.
+        threshold_minutes: The time window in minutes to look back for messages.
 
     Returns:
-        A list of tuples containing user and message content.
+        A list of tuples containing (author_name, message_content).
     """
     if str(channel_id) not in recent_messages:
         return []
@@ -88,246 +276,12 @@ def get_recent_messages(channel_id: int, threshold_minutes: int = 10) -> list[tu
     return [(user, message) for user, message, timestamp in recent_messages[str(channel_id)] if timestamp > threshold]
 
 
-def update_trigger_time(channel_id: str, user: str) -> None:
-    """Update the last trigger time for a user in a specific channel.
-
-    Args:
-        channel_id: The ID of the channel.
-        user: The user who triggered the bot.
-    """
-    if channel_id not in last_trigger_time:
-        last_trigger_time[channel_id] = {}
-
-    last_trigger_time[channel_id][user] = datetime.datetime.now(tz=datetime.UTC)
-    logger.info("Updated trigger time for user %s in channel %s", user, channel_id)
-
-
-def should_respond_without_trigger(channel_id: str, user: str, threshold_seconds: int = 40) -> bool:
-    """Check if the bot should respond to a user without requiring trigger keywords.
-
-    Args:
-        channel_id: The ID of the channel.
-        user: The user who sent the message.
-        threshold_seconds: The number of seconds to consider as "recent trigger".
-
-    Returns:
-        True if the bot should respond without trigger keywords, False otherwise.
-    """
-    if channel_id not in last_trigger_time or user not in last_trigger_time[channel_id]:
-        return False
-
-    last_trigger: datetime.datetime = last_trigger_time[channel_id][user]
-    threshold: datetime.datetime = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(seconds=threshold_seconds)
-
-    should_respond: bool = last_trigger > threshold
-    logger.info("User %s in channel %s last triggered at %s, should respond without trigger: %s", user, channel_id, last_trigger, should_respond)
-
-    return should_respond
-
-
-def extra_context(current_channel: MessageableChannel | InteractionChannel | None, user: User | Member) -> str:
-    """Add extra context to the chat prompt.
-
-    For example:
-    - Current date and time
-    - Channel name and server
-    - User's current status (online/offline)
-    - User's role in the server (e.g., admin, member)
-    - CPU usage
-    - Memory usage
-    - Disk usage
-    - How many messages saved in memory
-
-    Args:
-        current_channel: The channel where the conversation is happening.
-        user: The user who is interacting with the bot.
-
-    Returns:
-        The extra context to include in the chat prompt.
-    """
-    context: str = ""
-
-    # Information about the servers and channels:
-    context += "KillYoy's Server Information:\n"
-    context += "- Server is for friends to hang out and chat.\n"
-    context += "- Server was created by KillYoy (<@98468214824001536>)\n"
-    context += "Users in the server are from Sweden. They speak Swedish and English.\n"
-    context += "Everyone in the server is over 18 years old so you can talk about adult topics.\n"
-    context += "You should adapt your language to be suitable for an adult audience. For example, use swear words."
-    context += "Users in this server are members of the fictional space communist political party called the 'Swedish Space Communist Party'.\n"
-    context += "Try to align your responses with the values of this party, which include fast computer programs without bloat, HTML instead of JavaScript, and a focus on open source software and cooperation.\n"  # noqa: E501
-    context += "We don't like bloated software.\n"
-
-    context += "The bot is called 'LoviBot'.\n"
-
-    # Current date and time
-    context += f"Current date and time: {datetime.datetime.now(tz=datetime.UTC)} UTC, but user is in CEST or CET\n"
-    context += "Some fun day names that you can use:\n"
-    context += "- Monday: Milf Monday\n"
-    context += "- Tuesday: Tomboy Tuesday, Titties Tuesday\n"
-    context += "- Wednesday: Wife Wednesday, Waifu Wednesday\n"
-    context += "- Thursday: Tomboy Thursday, Titties Thursday\n"
-    context += "- Friday: Frieren Friday, Femboy Friday, Fern Friday, Flat Friday, Fredagsmys\n"
-    context += "- Saturday: Lördagsgodis\n"
-    context += "- Sunday: Going to church\n"
-
-    # Channel name and server
-    if isinstance(current_channel, channel.TextChannel):
-        context += f"Channel name: {current_channel.name}, channel ID: {current_channel.id}, Server: {current_channel.guild.name}\n"
-
-    # User information
-    context += f"User name: {user.name}, User ID: {user.id}\n"
-    if isinstance(user, Member):
-        context += f"User roles: {', '.join([role.name for role in user.roles])}\n"
-        context += f"User status: {user.status}\n"
-        context += f"User is currently {'on mobile' if user.is_on_mobile() else 'on desktop'}\n"
-        context += f"User joined server at: {user.joined_at}\n"
-        context += f"User's current activity: {user.activity}\n"
-        context += f"User's username color: {user.color}\n"
-
-    # System information
-    context += f"CPU usage per core: {psutil.cpu_percent(percpu=True)}%\n"
-    context += f"Memory usage: {psutil.virtual_memory().percent}%\n"
-    context += f"Total memory: {psutil.virtual_memory().total / (1024 * 1024):.2f} MB\n"
-    context += f"Swap memory usage: {psutil.swap_memory().percent}%\n"
-    context += f"Swap memory total: {psutil.swap_memory().total / (1024 * 1024):.2f} MB\n"
-    context += f"Bot memory usage: {psutil.Process().memory_info().rss / (1024 * 1024):.2f} MB\n"
-    uptime: datetime.timedelta = datetime.datetime.now(tz=datetime.UTC) - datetime.datetime.fromtimestamp(psutil.boot_time(), tz=datetime.UTC)
-    context += f"System uptime: {uptime}\n"
-    context += "Disk usage:\n"
-    for partition in psutil.disk_partitions():
-        try:
-            context += f"  {partition.mountpoint}: {psutil.disk_usage(partition.mountpoint).percent}%\n"
-        except PermissionError as e:
-            context += f"  {partition.mountpoint} got PermissionError: {e}\n"
-
-    if current_channel:
-        context += f"Messages saved in memory: {len(get_recent_messages(channel_id=current_channel.id))}\n"
-
-    return context
-
-
-async def chat(  # noqa: PLR0913, PLR0917
-    user_message: str,
-    openai_client: AsyncOpenAI,
-    current_channel: MessageableChannel | InteractionChannel | None,
-    user: User | Member,
-    allowed_users: list[str],
-    all_channels_in_guild: Sequence[GuildChannel] | None = None,
-) -> str | None:
-    """Chat with the bot using the OpenAI API.
-
-    Args:
-        user_message: The message to send to OpenAI.
-        openai_client: The OpenAI client to use.
-        current_channel: The channel where the conversation is happening.
-        user: The user who is interacting with the bot.
-        allowed_users: The list of allowed users to interact with the bot.
-        all_channels_in_guild: The list of all channels in the guild.
-
-    Returns:
-        The response from the AI model.
-    """
-    recent_context: str = ""
-    context: str = ""
-
-    if current_channel:
-        channel_id = int(current_channel.id)
-        recent_context: str = "\n".join([f"{user}: {message}" for user, message in get_recent_messages(channel_id=channel_id)])
-
-        context = extra_context(current_channel=current_channel, user=user)
-
-        if current_channel.guild:
-            server_emojis: list[Emoji] = list(current_channel.guild.emojis)
-            if server_emojis:
-                context += "\nEmojis with `kao` are pictures of kao172, he is our friend so you can use them to express yourself!\n"
-                context += "\nYou can use the following server emojis:\n"
-                for emoji in server_emojis:
-                    context += f"  - {emoji!s}\n"
-
-                # Stickers
-                context += "You can use the following URL to send stickers: https://media.discordapp.net/stickers/{sticker_id}.webp?size=4096\n"
-                context += "Remember to only send the URL if you want to use the sticker in your message.\n"
-                context += "You can use the following stickers:\n"
-                for sticker in current_channel.guild.stickers:
-                    context += f"  - {sticker!r}\n"
-
-    context += "The bot is in the following channels:\n"
-    if all_channels_in_guild:
-        for c in all_channels_in_guild:
-            context += f"{c!r}\n"
-
-    context += "\nThe bot responds to the following users:\n"
-    for user_id in allowed_users:
-        context += f"  - User ID: {user_id}\n"
-
-    context += "\n You can create bigger emojis by combining them:\n"
-    context += "For example if you want to create a big rat emoji, you can combine the following emojis. The picture is three by three:\n"
-    context += "  - <:rat1:1405292421742334116>: + <:rat2:1405292423373918258> + <:rat3:1405292425446031400>\n"
-    context += "  - <:rat4:1405292427777933354>: + <:rat5:1405292430210891949>: + <:rat6:1405292433411145860>:\n"
-    context += "  - <:rat7:1405292434883084409>: + <:rat8:1405292442181304320>: + <:rat9:1405292443619819631>:\n"
-    context += "This will create a picture of Jane Does ass."
-    context += " You can use it when we talk about coom, Zenless Zone Zero (ZZZ) or other related topics."
-    context += "\n"
-
-    context += "The following emojis needs to be on the same line to form a bigger emoji:\n"
-    context += "<a:phibiscarf2:1050306159023759420><a:phibiscarf_mid:1050306153084637194><a:phibiscarf1:1050306156997918802>\n"
-
-    context += "If you are using emoji combos, ONLY send the emoji itself and don't add unnecessary text.\n"
-    context += "Remember that combo emojis need to be on a separate line to form a bigger emoji.\n"
-    context += "But remember to not overuse them, remember that the user still can see the old message, so no need to write it again.\n"
-    context += "Also remember that you cant put code blocks around emojis.\n"
-    context += "Licka and Sniffa emojis are dogs that lick and sniff things. For example anime feet, butts and sweat.\n"
-    context += "If you want to use them, just send the emoji itself without any extra text.\n"
-
-    prompt: str = (
-        "You are in a Discord group chat. People can ask you questions.\n"
-        "Try to be brief, we don't want bloated messages. Be concise and to the point.\n"
-        "Use Discord Markdown to format messages if needed.\n"
-        "Don't use emojis.\n"
-        "Extra context starts here:\n"
-        f"{context}"
-        "Extra context ends here.\n"
-        "Recent context starts here:\n"
-        f"{recent_context}\n"
-        "Recent context ends here.\n"
-    )
-
-    logger.info("Sending request to OpenAI API with prompt: %s", prompt)
-
-    # Always include text first
-    user_content: list[ChatCompletionContentPartParam] = [
-        ChatCompletionContentPartTextParam(type="text", text=user_message),
-    ]
-
-    # Add images if found
-    image_urls = await get_images_from_text(user_message)
-    user_content.extend(
-        ChatCompletionContentPartImageParam(
-            type="image_url",
-            image_url={"url": _img},
-        )
-        for _img in image_urls
-    )
-
-    messages: list[ChatCompletionMessageParam] = [
-        ChatCompletionSystemMessageParam(role="system", content=prompt),
-        ChatCompletionUserMessageParam(role="user", content=user_content),
-    ]
-
-    resp: ChatCompletion = await openai_client.chat.completions.create(
-        model="gpt-5-chat-latest",
-        messages=messages,
-    )
-
-    return resp.choices[0].message.content if isinstance(resp.choices[0].message.content, str) else None
-
-
 async def get_images_from_text(text: str) -> list[str]:
     """Extract all image URLs from text and return their URLs.
 
     Args:
         text: The text to search for URLs.
+
 
     Returns:
         A list of urls for each image found.
@@ -373,3 +327,75 @@ async def get_raw_images_from_text(text: str) -> list[bytes]:
                 logger.warning("GET request failed for URL %s: %s", url, e)
 
     return images
+
+
+def get_allowed_users() -> list[str]:
+    """Get the list of allowed users to interact with the bot.
+
+    Returns:
+        The list of allowed users.
+    """
+    return [
+        "thelovinator",
+        "killyoy",
+        "forgefilip",
+        "plubplub",
+        "nobot",
+        "kao172",
+    ]
+
+
+def should_respond_without_trigger(channel_id: str, user: str, threshold_seconds: int = 40) -> bool:
+    """Check if the bot should respond to a user without requiring trigger keywords.
+
+    Args:
+        channel_id: The ID of the channel.
+        user: The user who sent the message.
+        threshold_seconds: The number of seconds to consider as "recent trigger".
+
+
+
+    Returns:
+        True if the bot should respond without trigger keywords, False otherwise.
+    """
+    if channel_id not in last_trigger_time or user not in last_trigger_time[channel_id]:
+        return False
+
+    last_trigger: datetime.datetime = last_trigger_time[channel_id][user]
+    threshold: datetime.datetime = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(seconds=threshold_seconds)
+
+    should_respond: bool = last_trigger > threshold
+    logger.info("User %s in channel %s last triggered at %s, should respond without trigger: %s", user, channel_id, last_trigger, should_respond)
+
+    return should_respond
+
+
+def add_message_to_memory(channel_id: str, user: str, message: str) -> None:
+    """Add a message to the memory for a specific channel.
+
+    Args:
+        channel_id: The ID of the channel where the message was sent.
+        user: The user who sent the message.
+        message: The content of the message.
+    """
+    if channel_id not in recent_messages:
+        recent_messages[channel_id] = deque(maxlen=50)
+
+    timestamp: datetime.datetime = datetime.datetime.now(tz=datetime.UTC)
+    recent_messages[channel_id].append((user, message, timestamp))
+
+    logger.info("Added message to memory: %s from %s in channel %s", message, user, channel_id)
+
+
+def update_trigger_time(channel_id: str, user: str) -> None:
+    """Update the last trigger time for a user in a specific channel.
+
+    Args:
+        channel_id: The ID of the channel.
+        user: The user who triggered the bot.
+    """
+    if channel_id not in last_trigger_time:
+        last_trigger_time[channel_id] = {}
+
+    last_trigger_time[channel_id][user] = datetime.datetime.now(tz=datetime.UTC)
+    logger.info("Updated trigger time for user %s in channel %s", user, channel_id)

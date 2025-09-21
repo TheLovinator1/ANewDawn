@@ -154,8 +154,7 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
     # Only allow certain users to interact with the bot
     allowed_users: list[str] = get_allowed_users()
     if user_name_lowercase not in allowed_users:
-        logger.info("Ignoring message from: %s", user_name_lowercase)
-        await interaction.followup.send("You are not allowed to use this command.")
+        await send_response(interaction=interaction, text=text, response="You are not authorized to use this command.")
         return
 
     try:
@@ -168,7 +167,7 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         )
     except openai.OpenAIError as e:
         logger.exception("An error occurred while chatting with the AI model.")
-        await interaction.followup.send(f"An error occurred: {e}")
+        await send_response(interaction=interaction, text=text, response=f"An error occurred: {e}")
         return
 
     truncated_text: str = truncate_user_input(text)
@@ -180,13 +179,26 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         logger.warning("No response from the AI model. Message: %s", text)
         response = "I forgor how to think 💀"
 
-    # If response is longer than 2000 characters, send as a file
+    # If response is longer than 2000 characters, split it into multiple messages
     max_discord_message_length: int = 2000
     if len(response) > max_discord_message_length:
-        file_content = response.encode("utf-8")
-        discord_file = discord.File(io.BytesIO(file_content), filename="response.txt")
-        await interaction.followup.send(f"{text}", file=discord_file)
+        for i in range(0, len(response), max_discord_message_length):
+            await send_response(interaction=interaction, text=text, response=response[i : i + max_discord_message_length])
 
+        return
+
+    await send_response(interaction=interaction, text=text, response=response)
+
+
+async def send_response(interaction: discord.Interaction, text: str, response: str) -> None:
+    """Send a response to the interaction, handling potential errors.
+
+    Args:
+        interaction (discord.Interaction): The interaction to respond to.
+        text (str): The original user input text.
+        response (str): The response to send.
+    """
+    logger.info("Sending response to interaction in channel %s", interaction.channel)
     try:
         await interaction.followup.send(response)
     except discord.HTTPException as e:

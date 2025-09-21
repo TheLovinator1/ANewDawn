@@ -187,7 +187,14 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         discord_file = discord.File(io.BytesIO(file_content), filename="response.txt")
         await interaction.followup.send(f"{text}", file=discord_file)
 
-    await interaction.followup.send(response)
+    try:
+        await interaction.followup.send(response)
+    except discord.HTTPException as e:
+        e.add_note(f"Response length: {len(response)} characters.")
+        e.add_note(f"User input length: {len(text)} characters.")
+
+        logger.exception("Failed to send message to channel %s", interaction.channel)
+        await interaction.followup.send(f"Failed to send message: {e}")
 
 
 def truncate_user_input(text: str) -> str:

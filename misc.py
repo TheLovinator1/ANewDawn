@@ -181,6 +181,7 @@ def get_system_prompt(ctx: RunContext[BotDependencies]) -> str:
         "## Emoji rules\n"
         "- Only send the emoji itself. Never add text to emoji combos.\n"
         "- Don't overuse combos.\n"
+        "- If you use a combo, never wrap them in a code block. If you send a combo, just send the emojis and nothing else.\n"
         "- Combo rules:\n"
         "  - Rat ass (Jane Doe's ass):\n"
         "    ```\n"

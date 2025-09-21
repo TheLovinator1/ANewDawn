@@ -171,14 +171,37 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         await interaction.followup.send(f"An error occurred: {e}")
         return
 
+    truncated_text: str = truncate_user_input(text)
+
     if response:
-        response = f"`{text}`\n\n{response}"
-
+        response = f"`{truncated_text}`\n\n{response}"
         logger.info("Responding to message: %s with: %s", text, response)
-
-        await interaction.followup.send(response)
     else:
-        await interaction.followup.send(f"I forgor how to think 💀\nText: {text}")
+        logger.warning("No response from the AI model. Message: %s", text)
+        response = "I forgor how to think 💀"
+
+    # If response is longer than 2000 characters, send as a file
+    max_discord_message_length: int = 2000
+    if len(response) > max_discord_message_length:
+        file_content = response.encode("utf-8")
+        discord_file = discord.File(io.BytesIO(file_content), filename="response.txt")
+        await interaction.followup.send(f"{text}", file=discord_file)
+
+    await interaction.followup.send(response)
+
+
+def truncate_user_input(text: str) -> str:
+    """Truncate user input if it exceeds the maximum length.
+
+    Args:
+        text (str): The user input text.
+
+    Returns:
+        str: The truncated text if it exceeds the maximum length, otherwise the original text.
+    """
+    max_length: int = 2000
+    truncated_text: str = text if len(text) <= max_length else text[: max_length - 3] + "..."
+    return truncated_text
 
 
 type ImageType = np.ndarray[Any, np.dtype[np.integer[Any] | np.floating[Any]]] | cv2.Mat

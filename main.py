@@ -20,6 +20,8 @@ from misc import add_message_to_memory, chat, get_allowed_users, get_raw_images_
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from discord.abc import Messageable as DiscordMessageable
+
 sentry_sdk.init(
     dsn="https://ebbd2cdfbd08dba008d628dad7941091@o4505228040339456.ingest.us.sentry.io/4507630719401984",
     send_default_pii=True,
@@ -33,6 +35,15 @@ logger.setLevel(logging.DEBUG)
 load_dotenv(verbose=True)
 
 discord_token: str = os.getenv("DISCORD_TOKEN", "")
+
+
+async def send_chunked_message(channel: DiscordMessageable, text: str, max_len: int = 2000) -> None:
+    """Send a message to a channel, splitting into chunks if it exceeds Discord's limit."""
+    if len(text) <= max_len:
+        await channel.send(text)
+        return
+    for i in range(0, len(text), max_len):
+        await channel.send(text[i : i + max_len])
 
 
 class LoviBotClient(discord.Client):
@@ -76,52 +87,50 @@ class LoviBotClient(discord.Client):
         # Add the message to memory
         add_message_to_memory(str(message.channel.id), message.author.name, incoming_message)
 
-        lowercase_message: str = incoming_message.lower() if incoming_message else ""
+        lowercase_message: str = incoming_message.lower()
         trigger_keywords: list[str] = ["lovibot", "@lovibot", "<@345000831499894795>", "grok", "@grok"]
         has_trigger_keyword: bool = any(trigger in lowercase_message for trigger in trigger_keywords)
-        should_respond: bool = has_trigger_keyword or should_respond_without_trigger(str(message.channel.id), message.author.name)
+        should_respond_flag: bool = has_trigger_keyword or should_respond_without_trigger(str(message.channel.id), message.author.name)
 
-        if should_respond:
-            # Update trigger time if they used a trigger keyword
-            if has_trigger_keyword:
-                update_trigger_time(str(message.channel.id), message.author.name)
+        if not should_respond_flag:
+            return
 
-            logger.info(
-                "Received message: %s from: %s (trigger: %s, recent: %s)", incoming_message, message.author.name, has_trigger_keyword, not has_trigger_keyword
-            )
+        # Update trigger time if they used a trigger keyword
+        if has_trigger_keyword:
+            update_trigger_time(str(message.channel.id), message.author.name)
 
-            async with message.channel.typing():
-                try:
-                    response: str | None = await chat(
-                        user_message=incoming_message,
-                        current_channel=message.channel,
-                        user=message.author,
-                        allowed_users=allowed_users,
-                        all_channels_in_guild=message.guild.channels if message.guild else None,
-                    )
-                except openai.OpenAIError as e:
-                    logger.exception("An error occurred while chatting with the AI model.")
-                    e.add_note(f"Message: {incoming_message}\nEvent: {message}\nWho: {message.author.name}")
-                    await message.channel.send(f"An error occurred while chatting with the AI model. {e}")
-                    return
+        logger.info(
+            "Received message: %s from: %s (trigger: %s, recent: %s)", incoming_message, message.author.name, has_trigger_keyword, not has_trigger_keyword
+        )
 
-                if response:
-                    logger.info("Responding to message: %s with: %s", incoming_message, response)
-                    # Record the bot's reply in memory
-                    try:
-                        add_message_to_memory(str(message.channel.id), "LoviBot", response)
-                    except Exception:
-                        logger.exception("Failed to add bot reply to memory for on_message")
+        async with message.channel.typing():
+            try:
+                response: str | None = await chat(
+                    user_message=incoming_message,
+                    current_channel=message.channel,
+                    user=message.author,
+                    allowed_users=allowed_users,
+                    all_channels_in_guild=message.guild.channels if message.guild else None,
+                )
+            except openai.OpenAIError as e:
+                logger.exception("An error occurred while chatting with the AI model.")
+                e.add_note(f"Message: {incoming_message}\nEvent: {message}\nWho: {message.author.name}")
+                await message.channel.send(f"An error occurred while chatting with the AI model. {e}")
+                return
 
-                    await message.channel.send(response)
-                else:
-                    logger.warning("No response from the AI model. Message: %s", incoming_message)
-                    fallback = "I forgor how to think 💀"
-                    try:
-                        add_message_to_memory(str(message.channel.id), "LoviBot", fallback)
-                    except Exception:
-                        logger.exception("Failed to add fallback bot reply to memory for on_message")
-                    await message.channel.send(fallback)
+            reply: str = response or "I forgor how to think 💀"
+            if response:
+                logger.info("Responding to message: %s with: %s", incoming_message, reply)
+            else:
+                logger.warning("No response from the AI model. Message: %s", incoming_message)
+
+            # Record the bot's reply in memory
+            try:
+                add_message_to_memory(str(message.channel.id), "LoviBot", reply)
+            except Exception:
+                logger.exception("Failed to add bot reply to memory for on_message")
+
+            await send_chunked_message(message.channel, reply)
 
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401, PLR6301
         """Log errors that occur in the bot."""

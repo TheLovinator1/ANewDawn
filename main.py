@@ -107,11 +107,21 @@ class LoviBotClient(discord.Client):
 
                 if response:
                     logger.info("Responding to message: %s with: %s", incoming_message, response)
+                    # Record the bot's reply in memory
+                    try:
+                        add_message_to_memory(str(message.channel.id), "LoviBot", response)
+                    except Exception:
+                        logger.exception("Failed to add bot reply to memory for on_message")
 
                     await message.channel.send(response)
                 else:
                     logger.warning("No response from the AI model. Message: %s", incoming_message)
-                    await message.channel.send("I forgor how to think 💀")
+                    fallback = "I forgor how to think 💀"
+                    try:
+                        add_message_to_memory(str(message.channel.id), "LoviBot", fallback)
+                    except Exception:
+                        logger.exception("Failed to add fallback bot reply to memory for on_message")
+                    await message.channel.send(fallback)
 
     async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401, PLR6301
         """Log errors that occur in the bot."""
@@ -157,8 +167,13 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         await send_response(interaction=interaction, text=text, response="You are not authorized to use this command.")
         return
 
+    # Record the user's question in memory (per-channel) so DMs have context
+    if interaction.channel is not None:
+        add_message_to_memory(str(interaction.channel.id), interaction.user.name, text)
+
+    # Get model response
     try:
-        response: str | None = await chat(
+        model_response: str | None = await chat(
             user_message=text,
             current_channel=interaction.channel,
             user=interaction.user,
@@ -172,22 +187,26 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
 
     truncated_text: str = truncate_user_input(text)
 
-    if response:
-        response = f"`{truncated_text}`\n\n{response}"
-        logger.info("Responding to message: %s with: %s", text, response)
-    else:
+    # Fallback if model provided no response
+    if not model_response:
         logger.warning("No response from the AI model. Message: %s", text)
-        response = "I forgor how to think 💀"
+        model_response = "I forgor how to think 💀"
+
+    # Record the bot's reply (raw model output) for conversation memory
+    if interaction.channel is not None:
+        add_message_to_memory(str(interaction.channel.id), "LoviBot", model_response)
+
+    display_response: str = f"`{truncated_text}`\n\n{model_response}"
+    logger.info("Responding to message: %s with: %s", text, display_response)
 
     # If response is longer than 2000 characters, split it into multiple messages
     max_discord_message_length: int = 2000
-    if len(response) > max_discord_message_length:
-        for i in range(0, len(response), max_discord_message_length):
-            await send_response(interaction=interaction, text=text, response=response[i : i + max_discord_message_length])
-
+    if len(display_response) > max_discord_message_length:
+        for i in range(0, len(display_response), max_discord_message_length):
+            await send_response(interaction=interaction, text=text, response=display_response[i : i + max_discord_message_length])
         return
 
-    await send_response(interaction=interaction, text=text, response=response)
+    await send_response(interaction=interaction, text=text, response=display_response)
 
 
 async def send_response(interaction: discord.Interaction, text: str, response: str) -> None:

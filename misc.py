@@ -59,6 +59,56 @@ agent: Agent[BotDependencies, str] = Agent(
 )
 
 
+def _message_text_length(msg: ModelRequest | ModelResponse) -> int:
+    """Compute the total text length of all text parts in a message.
+
+    This ignores non-text parts such as images. Safe for our usage where history only has text.
+
+    Returns:
+        The total number of characters across text parts in the message.
+    """
+    length: int = 0
+    for part in msg.parts:
+        if isinstance(part, (TextPart, UserPromptPart)):
+            # part.content is a string for text parts
+            length += len(getattr(part, "content", "") or "")
+    return length
+
+
+def compact_message_history(
+    history: list[ModelRequest | ModelResponse],
+    *,
+    max_chars: int = 12000,
+    min_messages: int = 4,
+) -> list[ModelRequest | ModelResponse]:
+    """Return a trimmed copy of history under a character budget.
+
+    - Keeps the most recent messages first, dropping oldest as needed.
+    - Ensures at least `min_messages` are kept even if they exceed the budget.
+    - Uses a simple character-based budget to avoid extra deps; good enough as a safeguard.
+
+    Returns:
+        A possibly shortened list of messages that fits within the character budget.
+    """
+    if not history:
+        return history
+
+    kept: list[ModelRequest | ModelResponse] = []
+    running: int = 0
+    # Walk from newest to oldest
+    for msg in reversed(history):
+        msg_len: int = _message_text_length(msg)
+        if running + msg_len <= max_chars or len(kept) < min_messages:
+            kept.append(msg)
+            running += msg_len
+        else:
+            # Budget exceeded and minimum kept reached; stop
+            break
+
+    kept.reverse()
+    return kept
+
+
 def get_all_server_emojis(ctx: RunContext[BotDependencies]) -> str:
     """Fetches and formats all custom emojis from the server.
 
@@ -248,6 +298,9 @@ async def chat(
             message_history.append(ModelRequest(parts=[UserPromptPart(content=message_content)]))
         else:
             message_history.append(ModelResponse(parts=[TextPart(content=message_content)]))
+
+    # Compact history to avoid exceeding model context limits
+    message_history = compact_message_history(message_history, max_chars=12000, min_messages=4)
 
     images: list[str] = await get_images_from_text(user_message)
 

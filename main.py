@@ -15,7 +15,7 @@ import sentry_sdk
 from discord import Forbidden, HTTPException, NotFound, app_commands
 from dotenv import load_dotenv
 
-from misc import add_message_to_memory, chat, get_allowed_users, get_raw_images_from_text, should_respond_without_trigger, update_trigger_time
+from misc import add_message_to_memory, chat, get_allowed_users, get_raw_images_from_text, reset_memory, should_respond_without_trigger, update_trigger_time
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -158,14 +158,23 @@ client = LoviBotClient(intents=intents)
 @app_commands.allowed_installs(guilds=True, users=True)
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @app_commands.describe(text="Ask LoviBot a question.")
-async def ask(interaction: discord.Interaction, text: str) -> None:
-    """A command to ask the AI a question."""
+async def ask(interaction: discord.Interaction, text: str, new_conversation: bool = False) -> None:  # noqa: FBT001, FBT002
+    """A command to ask the AI a question.
+
+    Args:
+        interaction (discord.Interaction): The interaction object.
+        text (str): The question or message to ask.
+        new_conversation (bool, optional): Whether to start a new conversation. Defaults to False.
+    """
     await interaction.response.defer()
 
     if not text:
         logger.error("No question or message provided.")
         await interaction.followup.send("You need to provide a question or message.", ephemeral=True)
         return
+
+    if new_conversation and interaction.channel is not None:
+        reset_memory(str(interaction.channel.id))
 
     user_name_lowercase: str = interaction.user.name.lower()
     logger.info("Received command from: %s", user_name_lowercase)
@@ -216,6 +225,30 @@ async def ask(interaction: discord.Interaction, text: str) -> None:
         return
 
     await send_response(interaction=interaction, text=text, response=display_response)
+
+
+@client.tree.command(name="reset", description="Reset the conversation memory.")
+@app_commands.allowed_installs(guilds=True, users=True)
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+async def reset(interaction: discord.Interaction) -> None:
+    """A command to reset the conversation memory."""
+    await interaction.response.defer()
+
+    user_name_lowercase: str = interaction.user.name.lower()
+    logger.info("Received command from: %s", user_name_lowercase)
+
+    # Only allow certain users to interact with the bot
+    allowed_users: list[str] = get_allowed_users()
+    if user_name_lowercase not in allowed_users:
+        await send_response(interaction=interaction, text="", response="You are not authorized to use this command.")
+        return
+
+    # Reset the conversation memory
+    if interaction.channel is not None:
+        reset_memory(str(interaction.channel.id))
+        await send_response(interaction=interaction, text="", response="Conversation memory has been reset.")
+
+    await interaction.followup.send(f"Conversation memory has been reset for {interaction.channel}.")
 
 
 async def send_response(interaction: discord.Interaction, text: str, response: str) -> None:

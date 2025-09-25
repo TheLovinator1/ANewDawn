@@ -57,6 +57,20 @@ agent: Agent[BotDependencies, str] = Agent(
 )
 
 
+def reset_memory(channel_id: str) -> None:
+    """Reset the conversation memory for a specific channel.
+
+    Args:
+        channel_id (str): The ID of the channel to reset memory for.
+    """
+    if channel_id in recent_messages:
+        del recent_messages[channel_id]
+        logger.info("Reset memory for channel %s", channel_id)
+    if channel_id in last_trigger_time:
+        del last_trigger_time[channel_id]
+        logger.info("Reset trigger times for channel %s", channel_id)
+
+
 def _message_text_length(msg: ModelRequest | ModelResponse) -> int:
     """Compute the total text length of all text parts in a message.
 

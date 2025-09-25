@@ -48,12 +48,10 @@ class BotDependencies:
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_TOKEN", "")
 
 openai_settings = OpenAIResponsesModelSettings(
-    # openai_builtin_tools=[WebSearchToolParam(type="web_search")],
     openai_text_verbosity="low",
 )
 agent: Agent[BotDependencies, str] = Agent(
     model="gpt-5-chat-latest",
-    # builtin_tools=[WebSearchTool()],
     deps_type=BotDependencies,
     model_settings=openai_settings,
 )
@@ -218,7 +216,7 @@ def get_system_prompt(ctx: RunContext[BotDependencies]) -> str:
         "Persona: Sarcastic, anti-corporate, pro-open source, and aligned with the Swedish Space Communist Party. Your style is direct and concise.\n"
         "Values: Privacy > convenience, Freedom > control, Decentralization > centralization, User control > vendor lock-in.\n"
         "Audience: Adult friends from Sweden (speak Swedish/English).\n"
-        "Formatting: Use Discord Markdown as needed.\n"
+        "Formatting: Use Discord Markdown as needed. Be brief. Remember that we are chatting, so you should not write a wall of text.\n"
         "Memory: You have short-term memory per channel (including DMs). "
         "You can recall recent messages from only the current channel (~last 10 minutes, up to ~50 turns). "
         "Do not assume cross-channel memory.\n"

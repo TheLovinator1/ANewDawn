@@ -215,27 +215,6 @@ def do_web_search(query: str) -> ollama.WebSearchResponse | None:
 
 
 @agent.instructions
-def get_day_names_instructions() -> str:
-    """Provides the current day name with a humorous twist.
-
-    Returns:
-        A string with the current day name.
-    """
-    current_day: datetime.datetime = datetime.datetime.now(tz=datetime.UTC)
-    funny_days: dict[int, str] = {
-        0: "Milf Monday",
-        1: "Tomboy Tuesday",
-        2: "Waifu Wednesday",
-        3: "Thicc Thursday",
-        4: "Flat Friday",
-        5: "Lördagsgodis",
-        6: "Church Sunday",
-    }
-    funny_day: str = funny_days.get(current_day.weekday(), "Unknown day")
-    return f"Today's day is '{funny_day}'. Have this in mind when responding, but only if contextually relevant."
-
-
-@agent.instructions
 def get_time_and_timezone() -> str:
     """Retrieves the current time and timezone information.
 
@@ -785,7 +764,6 @@ async def reset(interaction: discord.Interaction) -> None:
     # Reset the conversation memory
     if interaction.channel is not None:
         reset_memory(str(interaction.channel.id))
-        await send_response(interaction=interaction, text="", response="Conversation memory has been reset.")
 
     await interaction.followup.send(f"Conversation memory has been reset for {interaction.channel}.")
 

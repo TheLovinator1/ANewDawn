@@ -9,6 +9,7 @@ dependencies = [
     "discord-py",
     "httpx",
     "numpy",
+    "ollama",
     "openai",
     "opencv-contrib-python-headless",
     "psutil",

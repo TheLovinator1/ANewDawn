@@ -10,8 +10,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --no-install-project
 
-# Copy the application files
-COPY main.py misc.py /app/
+# Copy the application file
+COPY main.py /app/
 
 # Set the environment variables
 ENV PYTHONUNBUFFERED=1

@@ -233,7 +233,7 @@ def get_latency(ctx: RunContext[BotDependencies]) -> str:
         A string with the current latency information.
     """
     latency: float | Literal[0] = ctx.deps.client.latency if ctx.deps.client else 0
-    return f"Current latency: {latency} ms"
+    return f"Current latency: {latency} seconds"
 
 
 @agent.instructions

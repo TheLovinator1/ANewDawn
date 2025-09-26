@@ -506,12 +506,13 @@ def get_allowed_users() -> list[str]:
         The list of allowed users.
     """
     return [
-        "thelovinator",
-        "killyoy",
+        "etherlithium",
         "forgefilip",
-        "plubplub",
-        "nobot",
         "kao172",
+        "killyoy",
+        "nobot",
+        "plubplub",
+        "thelovinator",
     ]
 
 

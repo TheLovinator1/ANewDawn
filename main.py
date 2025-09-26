@@ -18,7 +18,7 @@ import ollama
 import openai
 import psutil
 import sentry_sdk
-from discord import Emoji, Forbidden, Guild, HTTPException, Member, NotFound, User, app_commands
+from discord import Emoji, Forbidden, Guild, GuildSticker, HTTPException, Member, NotFound, User, app_commands
 from dotenv import load_dotenv
 from pydantic_ai import Agent, ImageUrl, RunContext
 from pydantic_ai.messages import (
@@ -270,8 +270,36 @@ def added_information_from_web_search(ctx: RunContext[BotDependencies]) -> str:
     web_search_result: ollama.WebSearchResponse | None = ctx.deps.web_search_results
     if web_search_result and web_search_result.results:
         logger.debug("Web search results: %s", web_search_result.results)
-        return f"## Web Search Results\nHere is some information from a web search that might be relevant to the user's query:\n```json\n{web_search_result.results}\n```\n"  # noqa: E501
+        return f"Here is some information from a web search that might be relevant to the user's query:\n```json\n{web_search_result.results}\n```\n"
     return ""
+
+
+@agent.instructions
+def get_sticker_instructions(ctx: RunContext[BotDependencies]) -> str:
+    """Provides instructions for using stickers in the chat.
+
+    Returns:
+        A string with sticker usage instructions.
+    """
+    context: str = "Here are the available stickers:\n"
+
+    guilds: list[Guild] = [guild for guild in ctx.deps.client.guilds if guild]
+    for guild in guilds:
+        logger.debug("Bot is in guild: %s", guild.name)
+
+        stickers: tuple[GuildSticker, ...] = guild.stickers
+        if not stickers:
+            return ""
+
+        # Stickers
+        context += "Remember to only send the URL if you want to use the sticker in your message.\n"
+        context += "Available stickers:\n"
+
+        for sticker in stickers:
+            sticker_url: str = sticker.url + "?size=4096"
+            context += f"  - {sticker.name=}: {sticker_url=} - {sticker.description=} - {sticker.emoji=}\n"
+
+    return context + ("- Only send the sticker URL itself. Never add text to sticker combos.\n")
 
 
 @agent.instructions
@@ -281,49 +309,45 @@ def get_emoji_instructions(ctx: RunContext[BotDependencies]) -> str:
     Returns:
         A string with emoji usage instructions.
     """
-    if not ctx.deps.current_channel or not ctx.deps.current_channel.guild:
-        return ""
+    context: str = "Here are the available emojis:\n"
 
-    guild: Guild = ctx.deps.current_channel.guild
-    emojis: tuple[Emoji, ...] = guild.emojis
-    if not emojis:
-        return ""
+    guilds: list[Guild] = [guild for guild in ctx.deps.client.guilds if guild]
+    for guild in guilds:
+        logger.debug("Bot is in guild: %s", guild.name)
 
-    context = "\nEmojis with `kao` are pictures of kao172, he is our friend so you can use them to express yourself!\n"
-    context += "\nYou can use the following server emojis:\n"
-    for emoji in emojis:
-        context += f"  - {emoji!s}\n"
+        emojis: tuple[Emoji, ...] = guild.emojis
+        if not emojis:
+            return ""
 
-    # Stickers
-    context += "You can use the following URL to send stickers: https://media.discordapp.net/stickers/{sticker_id}.webp?size=4096\n"
-    context += "Remember to only send the URL if you want to use the sticker in your message.\n"
-    context += "You can use the following stickers:\n"
-    for sticker in guild.stickers:
-        context += f"  - {sticker!r}\n"
+        context += "\nEmojis with `kao` are pictures of kao172, he is our friend so you can use them to express yourself!\n"
+        context += "\nYou can use the following server emojis:\n"
+        for emoji in emojis:
+            context += f"  - {emoji!s}\n"
 
-    return context + (
-        "- Only send the emoji itself. Never add text to emoji combos.\n"
-        "- Don't overuse combos.\n"
-        "- If you use a combo, never wrap them in a code block. If you send a combo, just send the emojis and nothing else.\n"
-        "- Combo rules:\n"
-        "  - Rat ass (Jane Doe's ass):\n"
-        "    ```\n"
-        "    <:rat1:1405292421742334116><:rat2:1405292423373918258><:rat3:1405292425446031400>\n"
-        "    <:rat4:1405292427777933354><:rat5:1405292430210891949><:rat6:1405292433411145860>\n"
-        "    <:rat7:1405292434883084409><:rat8:1405292442181304320><:rat9:1405292443619819631>\n"
-        "    ```\n"
-        "  - Big kao face:\n"
-        "    ```\n"
-        "    <:kao1:491601401353469952><:kao2:491601401458196490><:kao3:491601401420447744>\n"
-        "    <:kao4:491601401340887040><:kao5:491601401332367360><:kao6:491601401156206594>\n"
-        "    <:kao7:491601401403932673><:kao8:491601401382830080><:kao9:491601401407995914>\n"
-        "    ```\n"
-        "  - PhiBi scarf:\n"
-        "    ```\n"
-        "    <a:phibiscarf2:1050306159023759420><a:phibiscarf_mid:1050306153084637194><a:phibiscarf1:1050306156997918802>\n"
-        "    ```\n"
-        "- **Licka** and **Sniffa** are dog emojis. Use them only to lick/sniff things (feet, butts, sweat).\n"
-    )
+        context += (
+            "- Only send the emoji itself. Never add text to emoji combos.\n"
+            "- Don't overuse combos.\n"
+            "- If you use a combo, never wrap them in a code block. If you send a combo, just send the emojis and nothing else.\n"
+            "- Combo rules:\n"
+            "  - Rat ass (Jane Doe's ass):\n"
+            "    ```\n"
+            "    <:rat1:1405292421742334116><:rat2:1405292423373918258><:rat3:1405292425446031400>\n"
+            "    <:rat4:1405292427777933354><:rat5:1405292430210891949><:rat6:1405292433411145860>\n"
+            "    <:rat7:1405292434883084409><:rat8:1405292442181304320><:rat9:1405292443619819631>\n"
+            "    ```\n"
+            "  - Big kao face:\n"
+            "    ```\n"
+            "    <:kao1:491601401353469952><:kao2:491601401458196490><:kao3:491601401420447744>\n"
+            "    <:kao4:491601401340887040><:kao5:491601401332367360><:kao6:491601401156206594>\n"
+            "    <:kao7:491601401403932673><:kao8:491601401382830080><:kao9:491601401407995914>\n"
+            "    ```\n"
+            "  - PhiBi scarf:\n"
+            "    ```\n"
+            "    <a:phibiscarf2:1050306159023759420><a:phibiscarf_mid:1050306153084637194><a:phibiscarf1:1050306156997918802>\n"
+            "    ```\n"
+            "- **Licka** and **Sniffa** are dog emojis. Use them only to lick/sniff things (feet, butts, sweat).\n"
+        )
+    return context
 
 
 @agent.instructions
@@ -342,6 +366,11 @@ def get_system_prompt() -> str:
         "Formatting: Use Discord Markdown as needed. Be brief. Remember that we are chatting, so you should not write a wall of text.\n"
         "You can recall recent messages from only the current channel (~last 10 minutes, up to ~50 turns).\n"
         "Be brief and to the point. Use as few words as possible.\n"
+        "If you are unsure about something, admit it rather than making up an answer.\n"
+        "Avoid unnecessary filler words and phrases.\n"
+        "If you are asked to generate code, provide only the code block without any additional text.\n"
+        "Never mention that you are an AI model or language model.\n"
+        "Only use web search results if they are relevant to the user's query.\n"
     )
 
 
@@ -498,8 +527,6 @@ def should_respond_without_trigger(channel_id: str, user: str, threshold_seconds
         channel_id: The ID of the channel.
         user: The user who sent the message.
         threshold_seconds: The number of seconds to consider as "recent trigger".
-
-
 
     Returns:
         True if the bot should respond without trigger keywords, False otherwise.

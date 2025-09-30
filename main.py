@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from discord.abc import MessageableChannel
     from discord.guild import GuildChannel
     from discord.interactions import InteractionChannel
+    from openai.types.chat import ChatCompletion
     from pydantic_ai.run import AgentRunResult
 
 load_dotenv(verbose=True)
@@ -72,11 +73,44 @@ class BotDependencies:
 openai_settings = OpenAIResponsesModelSettings(
     openai_text_verbosity="low",
 )
-agent: Agent[BotDependencies, str] = Agent(
+chatgpt_agent: Agent[BotDependencies, str] = Agent(
     model="gpt-5-chat-latest",
     deps_type=BotDependencies,
     model_settings=openai_settings,
 )
+grok_client = openai.OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+)
+
+
+def grok_it(
+    message: discord.Message | None,
+    user_message: str,
+) -> str | None:
+    """Chat with the bot using the Pydantic AI agent.
+
+    Args:
+        user_message: The message from the user.
+        message: The original Discord message object.
+
+    Returns:
+        The bot's response as a string, or None if no response.
+    """
+    allowed_users: list[str] = get_allowed_users()
+    if message and message.author.name not in allowed_users:
+        return None
+
+    response: ChatCompletion = grok_client.chat.completions.create(
+        model="x-ai/grok-4-fast:free",
+        messages=[
+            {
+                "role": "user",
+                "content": user_message,
+            },
+        ],
+    )
+    return response.choices[0].message.content
 
 
 # MARK: reset_memory
@@ -143,7 +177,7 @@ def compact_message_history(
 
 
 # MARK: fetch_user_info
-@agent.instructions
+@chatgpt_agent.instructions
 def fetch_user_info(ctx: RunContext[BotDependencies]) -> str:
     """Fetches detailed information about the user who sent the message, including their roles, status, and activity.
 
@@ -164,7 +198,7 @@ def fetch_user_info(ctx: RunContext[BotDependencies]) -> str:
 
 
 # MARK: get_system_performance_stats
-@agent.instructions
+@chatgpt_agent.instructions
 def get_system_performance_stats() -> str:
     """Retrieves current system performance metrics, including CPU, memory, and disk usage.
 
@@ -181,7 +215,7 @@ def get_system_performance_stats() -> str:
 
 
 # MARK: get_channels
-@agent.instructions
+@chatgpt_agent.instructions
 def get_channels(ctx: RunContext[BotDependencies]) -> str:
     """Retrieves a list of all channels the bot is currently in.
 
@@ -220,7 +254,7 @@ def do_web_search(query: str) -> ollama.WebSearchResponse | None:
 
 
 # MARK: get_time_and_timezone
-@agent.instructions
+@chatgpt_agent.instructions
 def get_time_and_timezone() -> str:
     """Retrieves the current time and timezone information.
 
@@ -232,7 +266,7 @@ def get_time_and_timezone() -> str:
 
 
 # MARK: get_latency
-@agent.instructions
+@chatgpt_agent.instructions
 def get_latency(ctx: RunContext[BotDependencies]) -> str:
     """Retrieves the current latency information.
 
@@ -244,7 +278,7 @@ def get_latency(ctx: RunContext[BotDependencies]) -> str:
 
 
 # MARK: added_information_from_web_search
-@agent.instructions
+@chatgpt_agent.instructions
 def added_information_from_web_search(ctx: RunContext[BotDependencies]) -> str:
     """Adds information from a web search to the system prompt.
 
@@ -262,7 +296,7 @@ def added_information_from_web_search(ctx: RunContext[BotDependencies]) -> str:
 
 
 # MARK: get_sticker_instructions
-@agent.instructions
+@chatgpt_agent.instructions
 def get_sticker_instructions(ctx: RunContext[BotDependencies]) -> str:
     """Provides instructions for using stickers in the chat.
 
@@ -291,7 +325,7 @@ def get_sticker_instructions(ctx: RunContext[BotDependencies]) -> str:
 
 
 # MARK: get_emoji_instructions
-@agent.instructions
+@chatgpt_agent.instructions
 def get_emoji_instructions(ctx: RunContext[BotDependencies]) -> str:
     """Provides instructions for using emojis in the chat.
 
@@ -340,7 +374,7 @@ def get_emoji_instructions(ctx: RunContext[BotDependencies]) -> str:
 
 
 # MARK: get_system_prompt
-@agent.instructions
+@chatgpt_agent.instructions
 def get_system_prompt() -> str:
     """Generate the core system prompt.
 
@@ -410,7 +444,7 @@ async def chat(  # noqa: PLR0913, PLR0917
 
     images: list[str] = await get_images_from_text(user_message)
 
-    result: AgentRunResult[str] = await agent.run(
+    result: AgentRunResult[str] = await chatgpt_agent.run(
         user_prompt=[
             user_message,
             *[ImageUrl(url=image_url) for image_url in images],
@@ -751,6 +785,62 @@ async def ask(interaction: discord.Interaction, text: str, new_conversation: boo
     # Record the bot's reply (raw model output) for conversation memory
     if interaction.channel is not None:
         add_message_to_memory(str(interaction.channel.id), "LoviBot", model_response)
+
+    display_response: str = f"`{truncated_text}`\n\n{model_response}"
+    logger.info("Responding to message: %s with: %s", text, display_response)
+
+    # If response is longer than 2000 characters, split it into multiple messages
+    max_discord_message_length: int = 2000
+    if len(display_response) > max_discord_message_length:
+        for i in range(0, len(display_response), max_discord_message_length):
+            await send_response(interaction=interaction, text=text, response=display_response[i : i + max_discord_message_length])
+        return
+
+    await send_response(interaction=interaction, text=text, response=display_response)
+
+
+# MARK: /grok command
+@client.tree.command(name="grok", description="Grok a question.")
+@app_commands.allowed_installs(guilds=True, users=True)
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.describe(text="Grok a question.")
+async def grok(interaction: discord.Interaction, text: str) -> None:
+    """A command to ask the AI a question.
+
+    Args:
+        interaction (discord.Interaction): The interaction object.
+        text (str): The question or message to ask.
+    """
+    await interaction.response.defer()
+
+    if not text:
+        logger.error("No question or message provided.")
+        await interaction.followup.send("You need to provide a question or message.", ephemeral=True)
+        return
+
+    user_name_lowercase: str = interaction.user.name.lower()
+    logger.info("Received command from: %s", user_name_lowercase)
+
+    # Only allow certain users to interact with the bot
+    allowed_users: list[str] = get_allowed_users()
+    if user_name_lowercase not in allowed_users:
+        await send_response(interaction=interaction, text=text, response="You are not authorized to use this command.")
+        return
+
+    # Get model response
+    try:
+        model_response: str | None = grok_it(message=interaction.message, user_message=text)
+    except openai.OpenAIError as e:
+        logger.exception("An error occurred while chatting with the AI model.")
+        await send_response(interaction=interaction, text=text, response=f"An error occurred: {e}")
+        return
+
+    truncated_text: str = truncate_user_input(text)
+
+    # Fallback if model provided no response
+    if not model_response:
+        logger.warning("No response from the AI model. Message: %s", text)
+        model_response = "I forgor how to think 💀"
 
     display_response: str = f"`{truncated_text}`\n\n{model_response}"
     logger.info("Responding to message: %s with: %s", text, display_response)

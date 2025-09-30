@@ -37,6 +37,7 @@
         "numpy",
         "Ollama",
         "opencv",
+        "OPENROUTER",
         "percpu",
         "phibiscarf",
         "plubplub",

@@ -21,7 +21,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Download the latest commit from the master branch
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       # Install the latest version of ruff
       - uses: astral-sh/ruff-action@v3

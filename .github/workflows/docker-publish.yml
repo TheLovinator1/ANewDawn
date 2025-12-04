@@ -40,16 +40,16 @@ jobs:
       # Extract metadata (tags, labels) from Git reference and GitHub events for Docker
       - id: meta
         uses: docker/metadata-action@v5
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/master'
         with:
           images: ghcr.io/thelovinator1/anewdawn
-          tags: type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'master') }}
+          tags: type=raw,value=latest
 
       # Build and push the Docker image
       - uses: docker/build-push-action@v6
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}

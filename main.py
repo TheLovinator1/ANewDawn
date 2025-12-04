@@ -131,9 +131,7 @@ def reset_memory(channel_id: str) -> None:
         deque(recent_messages[channel_id], maxlen=50) if channel_id in recent_messages else deque(maxlen=50)
     )
 
-    trigger_snapshot: dict[str, datetime.datetime] = (
-        dict(last_trigger_time[channel_id]) if channel_id in last_trigger_time else {}
-    )
+    trigger_snapshot: dict[str, datetime.datetime] = dict(last_trigger_time[channel_id]) if channel_id in last_trigger_time else {}
 
     # Only save snapshot if there's something to restore
     if messages_snapshot or trigger_snapshot:

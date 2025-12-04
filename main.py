@@ -127,13 +127,13 @@ def reset_memory(channel_id: str) -> None:
         channel_id (str): The ID of the channel to reset memory for.
     """
     # Create snapshot before reset for undo functionality
-    messages_snapshot: deque[tuple[str, str, datetime.datetime]] = deque(maxlen=50)
-    if channel_id in recent_messages:
-        messages_snapshot = deque(recent_messages[channel_id], maxlen=50)
+    messages_snapshot: deque[tuple[str, str, datetime.datetime]] = (
+        deque(recent_messages[channel_id], maxlen=50) if channel_id in recent_messages else deque(maxlen=50)
+    )
 
-    trigger_snapshot: dict[str, datetime.datetime] = {}
-    if channel_id in last_trigger_time:
-        trigger_snapshot = dict(last_trigger_time[channel_id])
+    trigger_snapshot: dict[str, datetime.datetime] = (
+        dict(last_trigger_time[channel_id]) if channel_id in last_trigger_time else {}
+    )
 
     # Only save snapshot if there's something to restore
     if messages_snapshot or trigger_snapshot:
@@ -169,12 +169,12 @@ def undo_reset(channel_id: str) -> bool:
 
     # Restore recent messages
     if messages_snapshot:
-        recent_messages[channel_id] = deque(messages_snapshot, maxlen=50)
+        recent_messages[channel_id] = messages_snapshot
         logger.info("Restored messages for channel %s", channel_id)
 
     # Restore trigger times
     if trigger_snapshot:
-        last_trigger_time[channel_id] = dict(trigger_snapshot)
+        last_trigger_time[channel_id] = trigger_snapshot
         logger.info("Restored trigger times for channel %s", channel_id)
 
     # Remove the snapshot after successful undo (only one undo allowed)

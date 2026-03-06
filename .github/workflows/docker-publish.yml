@@ -39,7 +39,7 @@ jobs:
 
       # Extract metadata (tags, labels) from Git reference and GitHub events for Docker
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         if: github.ref == 'refs/heads/master'
         with:
           images: ghcr.io/thelovinator1/anewdawn

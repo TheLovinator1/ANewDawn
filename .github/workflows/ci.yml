@@ -15,6 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Print the local dir and list files for debugging
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -ahl
+
       - name: Install dependencies
         run: uv sync --all-extras --dev -U
 
@@ -23,9 +29,6 @@ jobs:
 
       - name: Check formatting
         run: ruff format --check --verbose
-
-      - name: Lint Dockerfile (build only)
-        run: docker build --check .
 
       - name: Run tests
         run: uv run pytest

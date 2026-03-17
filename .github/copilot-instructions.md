@@ -14,7 +14,7 @@ ANewDawn is a Discord bot written in Python 3.13+ using the discord.py library a
 
 - **Python**: 3.13 or higher required
 - **Package Manager**: Use `uv` for dependency management (see `pyproject.toml`)
-- **Docker**: The project uses Docker for deployment (see `Dockerfile` and `docker-compose.yml`)
+- **Deployment**: The project is designed to run as a systemd service (see `systemd/anewdawn.service`)
 - **Environment Variables**: Copy `.env.example` to `.env` and fill in required tokens
 
 ## Code Style and Conventions
@@ -57,7 +57,7 @@ ruff format --check --verbose
 
 - `main.py` - Main bot application with all commands and event handlers
 - `pyproject.toml` - Project configuration and dependencies
-- `Dockerfile` / `docker-compose.yml` - Container configuration
+- `systemd/` - systemd unit and environment templates
 - `.github/workflows/` - CI/CD workflows
 
 ## Key Components
@@ -82,10 +82,10 @@ The main bot client is `LoviBotClient` which extends `discord.Client`. It handle
 
 ## CI/CD
 
-The GitHub Actions workflow (`.github/workflows/docker-publish.yml`) runs:
-1. Ruff linting and format check
-2. Dockerfile validation
-3. Docker image build and push to GitHub Container Registry
+The GitHub Actions workflow (`.github/workflows/ci.yml`) runs:
+1. Dependency install via `uv sync`
+2. Ruff linting and format check
+3. Unit tests via `pytest`
 
 ## Common Tasks
 

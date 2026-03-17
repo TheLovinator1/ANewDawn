@@ -73,11 +73,11 @@ class BotDependencies:
     web_search_results: ollama.WebSearchResponse | None = None
 
 
-openai_settings = OpenAIResponsesModelSettings(
+openai_settings: OpenAIResponsesModelSettings = OpenAIResponsesModelSettings(
     openai_text_verbosity="low",
 )
 chatgpt_agent: Agent[BotDependencies, str] = Agent(
-    model="gpt-5-chat-latest",
+    model="openai:gpt-5-chat-latest",
     deps_type=BotDependencies,
     model_settings=openai_settings,
 )
@@ -677,7 +677,7 @@ class LoviBotClient(discord.Client):
         add_message_to_memory(str(message.channel.id), message.author.name, incoming_message)
 
         lowercase_message: str = incoming_message.lower()
-        trigger_keywords: list[str] = ["lovibot", "@lovibot", "<@345000831499894795>"]
+        trigger_keywords: list[str] = ["lovibot", "@lovibot", "<@345000831499894795>", "@grok", "grok"]
         has_trigger_keyword: bool = any(trigger in lowercase_message for trigger in trigger_keywords)
         should_respond_flag: bool = has_trigger_keyword or should_respond_without_trigger(str(message.channel.id), message.author.name)
 

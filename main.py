@@ -689,7 +689,11 @@ class LoviBotClient(discord.Client):
             update_trigger_time(str(message.channel.id), message.author.name)
 
         logger.info(
-            "Received message: %s from: %s (trigger: %s, recent: %s)", incoming_message, message.author.name, has_trigger_keyword, not has_trigger_keyword
+            "Received message: %s from: %s (trigger: %s, recent: %s)",
+            incoming_message,
+            message.author.name,
+            has_trigger_keyword,
+            not has_trigger_keyword,
         )
 
         async with message.channel.typing():

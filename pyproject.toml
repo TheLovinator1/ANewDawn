@@ -22,15 +22,21 @@ dependencies = [
 dev = ["pytest", "ruff"]
 
 [tool.ruff]
-preview = true
 fix = true
+preview = true
 unsafe-fixes = true
-lint.select = ["ALL"]
-lint.fixable = ["ALL"]
-lint.pydocstyle.convention = "google"
-lint.isort.required-imports = ["from __future__ import annotations"]
-lint.pycodestyle.ignore-overlong-task-comments = true
 
+format.docstring-code-format = true
+format.preview = true
+
+lint.future-annotations = true
+lint.isort.force-single-line = true
+lint.pycodestyle.ignore-overlong-task-comments = true
+lint.pydocstyle.convention = "google"
+lint.select = ["ALL"]
+
+# Don't automatically remove unused variables
+lint.unfixable = ["F841"]
 lint.ignore = [
     "CPY001", # Checks for the absence of copyright notices within Python files.
     "D100",   # Checks for undocumented public module definitions.
@@ -56,12 +62,7 @@ lint.ignore = [
     "Q003",   # Checks for strings that include escaped quotes, and suggests changing the quote style to avoid the need to escape them.
     "W191",   # Checks for indentation that uses tabs.
 ]
-line-length = 160
 
-
-[tool.ruff.format]
-docstring-code-format = true
-docstring-code-line-length = 20
 
 [tool.ruff.lint.per-file-ignores]
 "**/test_*.py" = [

@@ -2,15 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from main import (
-    add_message_to_memory,
-    last_trigger_time,
-    recent_messages,
-    reset_memory,
-    reset_snapshots,
-    undo_reset,
-    update_trigger_time,
-)
+from main import add_message_to_memory
+from main import last_trigger_time
+from main import recent_messages
+from main import reset_memory
+from main import reset_snapshots
+from main import undo_reset
+from main import update_trigger_time
 
 
 @pytest.fixture(autouse=True)

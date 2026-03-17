@@ -4,7 +4,7 @@
 
 ANewDawn is a Discord bot written in Python 3.13+ using the discord.py library and Pydantic AI for AI-powered chat capabilities. The bot includes features such as:
 
-- AI-powered chat responses using OpenAI and Grok models
+- AI-powered chat responses using OpenAI models
 - Conversation memory with reset/undo functionality
 - Image enhancement using OpenCV
 - Web search integration via Ollama
@@ -66,13 +66,12 @@ ruff format --check --verbose
 
 The main bot client is `LoviBotClient` which extends `discord.Client`. It handles:
 - Message events (`on_message`)
-- Slash commands (`/ask`, `/grok`, `/reset`, `/undo`)
+- Slash commands (`/ask`, `/reset`, `/undo`)
 - Context menus (image enhancement)
 
 ### AI Integration
 
 - `chatgpt_agent` - Pydantic AI agent using OpenAI
-- `grok_it()` - Function for Grok model responses
 - Message history is stored in `recent_messages` dict per channel
 
 ### Memory Management

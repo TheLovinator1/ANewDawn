@@ -36,7 +36,6 @@ if TYPE_CHECKING:
     from discord.abc import MessageableChannel
     from discord.guild import GuildChannel
     from discord.interactions import InteractionChannel
-    from openai.types.chat import ChatCompletion
     from pydantic_ai.run import AgentRunResult
 
 load_dotenv(verbose=True)
@@ -82,39 +81,6 @@ chatgpt_agent: Agent[BotDependencies, str] = Agent(
     deps_type=BotDependencies,
     model_settings=openai_settings,
 )
-grok_client = openai.OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENROUTER_API_KEY"),
-)
-
-
-def grok_it(
-    message: discord.Message | None,
-    user_message: str,
-) -> str | None:
-    """Chat with the bot using the Pydantic AI agent.
-
-    Args:
-        user_message: The message from the user.
-        message: The original Discord message object.
-
-    Returns:
-        The bot's response as a string, or None if no response.
-    """
-    allowed_users: list[str] = get_allowed_users()
-    if message and message.author.name not in allowed_users:
-        return None
-
-    response: ChatCompletion = grok_client.chat.completions.create(
-        model="x-ai/grok-4-fast:free",
-        messages=[
-            {
-                "role": "user",
-                "content": user_message,
-            },
-        ],
-    )
-    return response.choices[0].message.content
 
 
 # MARK: reset_memory
@@ -711,7 +677,7 @@ class LoviBotClient(discord.Client):
         add_message_to_memory(str(message.channel.id), message.author.name, incoming_message)
 
         lowercase_message: str = incoming_message.lower()
-        trigger_keywords: list[str] = ["lovibot", "@lovibot", "<@345000831499894795>", "grok", "@grok"]
+        trigger_keywords: list[str] = ["lovibot", "@lovibot", "<@345000831499894795>"]
         has_trigger_keyword: bool = any(trigger in lowercase_message for trigger in trigger_keywords)
         should_respond_flag: bool = has_trigger_keyword or should_respond_without_trigger(str(message.channel.id), message.author.name)
 
@@ -839,62 +805,6 @@ async def ask(interaction: discord.Interaction, text: str, new_conversation: boo
     # Record the bot's reply (raw model output) for conversation memory
     if interaction.channel is not None:
         add_message_to_memory(str(interaction.channel.id), "LoviBot", model_response)
-
-    display_response: str = f"`{truncated_text}`\n\n{model_response}"
-    logger.info("Responding to message: %s with: %s", text, display_response)
-
-    # If response is longer than 2000 characters, split it into multiple messages
-    max_discord_message_length: int = 2000
-    if len(display_response) > max_discord_message_length:
-        for i in range(0, len(display_response), max_discord_message_length):
-            await send_response(interaction=interaction, text=text, response=display_response[i : i + max_discord_message_length])
-        return
-
-    await send_response(interaction=interaction, text=text, response=display_response)
-
-
-# MARK: /grok command
-@client.tree.command(name="grok", description="Grok a question.")
-@app_commands.allowed_installs(guilds=True, users=True)
-@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@app_commands.describe(text="Grok a question.")
-async def grok(interaction: discord.Interaction, text: str) -> None:
-    """A command to ask the AI a question.
-
-    Args:
-        interaction (discord.Interaction): The interaction object.
-        text (str): The question or message to ask.
-    """
-    await interaction.response.defer()
-
-    if not text:
-        logger.error("No question or message provided.")
-        await interaction.followup.send("You need to provide a question or message.", ephemeral=True)
-        return
-
-    user_name_lowercase: str = interaction.user.name.lower()
-    logger.info("Received command from: %s", user_name_lowercase)
-
-    # Only allow certain users to interact with the bot
-    allowed_users: list[str] = get_allowed_users()
-    if user_name_lowercase not in allowed_users:
-        await send_response(interaction=interaction, text=text, response="You are not authorized to use this command.")
-        return
-
-    # Get model response
-    try:
-        model_response: str | None = grok_it(message=interaction.message, user_message=text)
-    except openai.OpenAIError as e:
-        logger.exception("An error occurred while chatting with the AI model.")
-        await send_response(interaction=interaction, text=text, response=f"An error occurred: {e}")
-        return
-
-    truncated_text: str = truncate_user_input(text)
-
-    # Fallback if model provided no response
-    if not model_response:
-        logger.warning("No response from the AI model. Message: %s", text)
-        model_response = "I forgor how to think 💀"
 
     display_response: str = f"`{truncated_text}`\n\n{model_response}"
     logger.info("Responding to message: %s with: %s", text, display_response)

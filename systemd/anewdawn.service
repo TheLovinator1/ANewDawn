@@ -1,0 +1,28 @@
+[Unit]
+Description=ANewDawn Discord Bot
+After=network.target
+
+[Service]
+Type=simple
+# Run the bot as the lovinator user (UID 1000) so it has appropriate permissions.
+# Update these values if you need a different system user/group.
+User=lovinator
+Group=lovinator
+
+# The project directory containing main.py (update as needed).
+WorkingDirectory=/home/lovinator/Code/ANewDawn
+
+# Load environment variables (see systemd/anewdawn.env.example).
+EnvironmentFile=/etc/ANewDawn/ANewDawn.env
+
+# Use the python interpreter from your environment (system python is fine if dependencies are installed).
+ExecStart=/usr/bin/env python3 main.py
+
+Restart=on-failure
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

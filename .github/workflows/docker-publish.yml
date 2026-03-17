@@ -1,4 +1,4 @@
-name: Build Docker Image
+name: CI
 
 on:
   push:
@@ -6,50 +6,30 @@ on:
   workflow_dispatch:
 
 jobs:
-  docker:
-    runs-on: ubuntu-latest
+  ci:
+    runs-on: self-hosted
     env:
       DISCORD_TOKEN: "0"
       OPENAI_TOKEN: "0"
-    steps:
-      # GitHub Container Registry
-      - uses: docker/login-action@v4
-        if: github.event_name != 'pull_request'
-        with:
-          registry: ghcr.io
-          username: thelovinator1
-          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Download the latest commit from the master branch
+    steps:
       - uses: actions/checkout@v6
 
-      # Install the latest version of ruff
       - uses: astral-sh/ruff-action@v3
         with:
           version: "latest"
 
-      # Lint the Python code using ruff
-      - run: ruff check --exit-non-zero-on-fix --verbose
+      - name: Install dependencies
+        run: uv sync --all-extras --dev -U
 
-      # Check if the Python code needs formatting
-      - run: ruff format --check --verbose
+      - name: Lint the Python code using ruff
+        run: ruff check --exit-non-zero-on-fix --verbose
 
-      # Lint Dockerfile
-      - run: docker build --check .
+      - name: Check formatting
+        run: ruff format --check --verbose
 
-      # Extract metadata (tags, labels) from Git reference and GitHub events for Docker
-      - id: meta
-        uses: docker/metadata-action@v6
-        if: github.ref == 'refs/heads/master'
-        with:
-          images: ghcr.io/thelovinator1/anewdawn
-          tags: type=raw,value=latest
+      - name: Lint Dockerfile (build only)
+        run: docker build --check .
 
-      # Build and push the Docker image
-      - uses: docker/build-push-action@v7
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-        with:
-          context: .
-          push: true
-          labels: ${{ steps.meta.outputs.labels }}
-          tags: ${{ steps.meta.outputs.tags }}
+      - name: Run tests
+        run: uv run pytest

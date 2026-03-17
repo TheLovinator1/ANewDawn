@@ -15,12 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Print the local dir and list files for debugging
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Files in current directory:"
-          ls -ahl
-
       - name: Install dependencies
         run: uv sync --all-extras --dev -U
 
@@ -32,3 +26,18 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+      # NOTE: The runner must be allowed to run these commands without a password.
+      #   sudo EDITOR=nvim visudo
+      #   forgejo-runner ALL=(lovinator) NOPASSWD: /usr/bin/git -C /home/lovinator/ANewDawn pull
+      #   forgejo-runner ALL=(root) NOPASSWD: /bin/systemctl restart anewdawn.service
+      #   forgejo-runner ALL=(lovinator) NOPASSWD: /usr/bin/uv sync -U --all-extras --dev --directory /home/lovinator/ANewDawn
+      - name: Deploy & restart bot (master only)
+        if: ${{ success() && github.ref == 'refs/heads/master' }}
+        run: |
+          # Keep checkout in the Forgejo runner workspace, whatever that is.
+          # actions/checkout already checks out to the runner's working directory.
+
+          sudo -u lovinator git -C /home/lovinator/ANewDawn pull
+          sudo -u lovinator uv sync -U --all-extras --dev --directory /home/lovinator/ANewDawn
+          sudo systemctl restart anewdawn.service

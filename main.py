@@ -92,7 +92,7 @@ openai_settings: OpenAIResponsesModelSettings = OpenAIResponsesModelSettings(
     openai_text_verbosity="low",
 )
 chatgpt_agent: Agent[BotDependencies, str] = Agent(
-    model="openai:gpt-5-chat-latest",
+    model="deepseek:deepseek-v4-flash",
     deps_type=BotDependencies,
     model_settings=openai_settings,
 )
@@ -1113,7 +1113,7 @@ def enhance_image1(image: bytes) -> bytes:
     """
     # Read the image
     nparr: ImageType = np.frombuffer(image, np.uint8)
-    img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)  # pyright: ignore[reportAssignmentType]
 
     # Denoise the image with conservative settings
     img_np = cv2.fastNlMeansDenoisingColored(img_np, None, 5, 5, 7, 21)
@@ -1150,7 +1150,7 @@ def enhance_image2(image: bytes) -> bytes:
     """
     # Read the image
     nparr: ImageType = np.frombuffer(image, np.uint8)
-    img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)  # pyright: ignore[reportAssignmentType]
 
     # Denoise the image with conservative settings
     img_np = cv2.fastNlMeansDenoisingColored(img_np, None, 5, 5, 7, 21)
@@ -1194,7 +1194,7 @@ def enhance_image3(image: bytes) -> bytes:
     """
     # Read the image
     nparr: ImageType = np.frombuffer(image, np.uint8)
-    img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    img_np: ImageType = cv2.imdecode(nparr, cv2.IMREAD_COLOR)  # pyright: ignore[reportAssignmentType]
 
     # Denoise the image with conservative settings
     img_np = cv2.fastNlMeansDenoisingColored(img_np, None, 5, 5, 7, 21)

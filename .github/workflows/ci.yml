@@ -11,6 +11,7 @@ jobs:
     env:
       DISCORD_TOKEN: "0"
       OPENAI_TOKEN: "0"
+      DEEPSEEK_API_KEY: "0"
 
     steps:
       - uses: actions/checkout@v6

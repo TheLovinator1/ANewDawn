@@ -8,6 +8,7 @@ import os
 import re
 from collections import deque
 from dataclasses import dataclass
+from logging import basicConfig
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Literal
@@ -17,6 +18,7 @@ from typing import TypeVar
 import cv2
 import discord
 import httpx
+import logfire
 import numpy as np
 import ollama
 import openai
@@ -58,10 +60,10 @@ sentry_sdk.init(
     send_default_pii=True,
 )
 
+logfire.configure()
+basicConfig(handlers=[logfire.LogfireLoggingHandler()], level=logging.DEBUG)
 
 logger: logging.Logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
 
 discord_token: str = os.getenv("DISCORD_TOKEN", "")
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_TOKEN", "")
@@ -521,11 +523,11 @@ async def chat(  # noqa: PLR0913, PLR0917
     ):
         if author_name != bot_name:
             message_history.append(
-                ModelRequest(parts=[UserPromptPart(content=message_content)]),
+                ModelRequest([UserPromptPart(content=message_content)]),
             )
         else:
             message_history.append(
-                ModelResponse(parts=[TextPart(content=message_content)]),
+                ModelResponse([TextPart(content=message_content)]),
             )
 
     # Compact history to avoid exceeding model context limits

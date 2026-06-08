@@ -8,6 +8,7 @@ dependencies = [
     "audioop-lts",
     "discord-py",
     "httpx",
+    "logfire[httpx]",
     "numpy",
     "ollama",
     "openai",

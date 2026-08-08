@@ -18,7 +18,6 @@ from typing import TypeVar
 import cv2
 import discord
 import httpx
-import logfire
 import numpy as np
 import ollama
 import openai
@@ -60,8 +59,11 @@ sentry_sdk.init(
     send_default_pii=True,
 )
 
-logfire.configure()
-basicConfig(handlers=[logfire.LogfireLoggingHandler()], level=logging.DEBUG)
+basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -330,6 +332,16 @@ def get_latency(ctx: RunContext[BotDependencies]) -> str:
     return f"Current latency: {latency} seconds"
 
 
+@chatgpt_agent.instructions
+def get_current_model(ctx: RunContext[BotDependencies]) -> str:
+    """Retrieves the current model being used.
+
+    Returns:
+        A string with the current model information.
+    """
+    return f"You current model: {ctx.model.label} ({ctx.model.model_id})"
+
+
 # MARK: added_information_from_web_search
 @chatgpt_agent.instructions
 def added_information_from_web_search(ctx: RunContext[BotDependencies]) -> str:
@@ -356,23 +368,55 @@ def added_information_from_web_search(ctx: RunContext[BotDependencies]) -> str:
             len(web_search_result.results),
             max_length,
         )
+
         web_search_result.results = web_search_result.results[:max_length]
+        urls: list[str] = []
+        for result in web_search_result.results:
+            url: str | None = result.url
+            title: str | None = result.title
+            if url and title:
+                urls.append(f"{url} - {title}")
+            elif url:
+                urls.append(url)
+            else:
+                urls.append(title or "")
+
+        logger.info("Web search results: %s", web_search_result.results)
+        logger.info("Web search results URLs: %s", urls)
 
         # Also tell the model that the results were truncated and may be incomplete
         return (
-            f"Here is some information from a web search that might be relevant to the user's query. "  # noqa: E501
-            f"The results were too long and have been truncated, so they may be incomplete:\n"  # noqa: E501
+            f"Here is some information from a web search that might be relevant to the user's query. "  # ruff: ignore[line-too-long]
+            f"You got the information from the following URLs:\n"
+            f"```\n{urls}\n```\n"
+            "You should tell them what sources you used to get the information.\n"
+            f"The results were too long and have been truncated, so they may be incomplete:\n"  # ruff: ignore[line-too-long]
             f"```json\n{web_search_result.results}\n```\n"
         )
 
     if web_search_result and web_search_result.results:
-        logger.debug("Web search results: %s", web_search_result.results)
+        urls: list[str] = []
+        for result in web_search_result.results:
+            url: str | None = result.url
+            title: str | None = result.title
+            if url and title:
+                urls.append(f"{url} - {title}")
+            elif url:
+                urls.append(url)
+            else:
+                urls.append(title or "")
+
+        logger.info("Web search results: %s", web_search_result.results)
+        logger.info("Web search results URLs: %s", urls)
         return (
-            f"Here is some information from a web search that might be relevant to the user's query:\n"  # noqa: E501
+            f"Here is some information from a web search that might be relevant to the user's query:\n"  # ruff: ignore[line-too-long]
+            f"You got the information from the following URLs:\n"
+            f"```\n{urls}\n```\n"
+            "You should tell them what sources you used to get the information.\n"
             f"```json\n{web_search_result.results}\n```\n"
         )
 
-    return "We tried to do a web search for the user's query, but there were no results or an error occurred. You can tell them that!\n"  # noqa: E501
+    return "We tried to do a web search for the user's query, but there were no results or an error occurred. You can tell them that!\n"  # ruff: ignore[line-too-long]
 
 
 # MARK: get_sticker_instructions
@@ -387,19 +431,19 @@ def get_sticker_instructions(ctx: RunContext[BotDependencies]) -> str:
 
     guilds: list[Guild] = [guild for guild in ctx.deps.client.guilds if guild]
     for guild in guilds:
-        logger.debug("Bot is in guild: %s", guild.name)
+        logger.info("Bot is in guild: %s", guild.name)
 
         stickers: tuple[GuildSticker, ...] = guild.stickers
         if not stickers:
             return ""
 
         # Stickers
-        context += "Remember to only send the URL if you want to use the sticker in your message.\n"  # noqa: E501
+        context += "Remember to only send the URL if you want to use the sticker in your message.\n"  # ruff: ignore[line-too-long]
         context += "Available stickers:\n"
 
         for sticker in stickers:
             sticker_url: str = sticker.url + "?size=4096"
-            context += f"  - {sticker.name=}: {sticker_url=} - {sticker.description=} - {sticker.emoji=}\n"  # noqa: E501
+            context += f"  - {sticker.name=}: {sticker_url=} - {sticker.description=} - {sticker.emoji=}\n"  # ruff: ignore[line-too-long]
 
     return (
         context
@@ -419,13 +463,13 @@ def get_emoji_instructions(ctx: RunContext[BotDependencies]) -> str:
 
     guilds: list[Guild] = [guild for guild in ctx.deps.client.guilds if guild]
     for guild in guilds:
-        logger.debug("Bot is in guild: %s", guild.name)
+        logger.info("Bot is in guild: %s", guild.name)
 
         emojis: tuple[Emoji, ...] = guild.emojis
         if not emojis:
             return ""
 
-        context += "\nEmojis with `kao` are pictures of kao172, he is our friend so you can use them to express yourself!\n"  # noqa: E501
+        context += "\nEmojis with `kao` are pictures of kao172, he is our friend so you can use them to express yourself!\n"  # ruff: ignore[line-too-long]
         context += "\nYou can use the following server emojis:\n"
         for emoji in emojis:
             context += f"  - {emoji!s}\n"
@@ -433,25 +477,25 @@ def get_emoji_instructions(ctx: RunContext[BotDependencies]) -> str:
         context += (
             "- Only send the emoji itself. Never add text to emoji combos.\n"
             "- Don't overuse combos.\n"
-            "- If you use a combo, never wrap them in a code block. If you send a combo, just send the emojis and nothing else.\n"  # noqa: E501
+            "- If you use a combo, never wrap them in a code block. If you send a combo, just send the emojis and nothing else.\n"  # ruff: ignore[line-too-long]
             "- Combo rules:\n"
             "  - Rat ass (Jane Doe's ass):\n"
             "    ```\n"
-            "    <:rat1:1405292421742334116><:rat2:1405292423373918258><:rat3:1405292425446031400>\n"  # noqa: E501
-            "    <:rat4:1405292427777933354><:rat5:1405292430210891949><:rat6:1405292433411145860>\n"  # noqa: E501
-            "    <:rat7:1405292434883084409><:rat8:1405292442181304320><:rat9:1405292443619819631>\n"  # noqa: E501
+            "    <:rat1:1405292421742334116><:rat2:1405292423373918258><:rat3:1405292425446031400>\n"  # ruff: ignore[line-too-long]
+            "    <:rat4:1405292427777933354><:rat5:1405292430210891949><:rat6:1405292433411145860>\n"  # ruff: ignore[line-too-long]
+            "    <:rat7:1405292434883084409><:rat8:1405292442181304320><:rat9:1405292443619819631>\n"  # ruff: ignore[line-too-long]
             "    ```\n"
             "  - Big kao face:\n"
             "    ```\n"
-            "    <:kao1:491601401353469952><:kao2:491601401458196490><:kao3:491601401420447744>\n"  # noqa: E501
-            "    <:kao4:491601401340887040><:kao5:491601401332367360><:kao6:491601401156206594>\n"  # noqa: E501
-            "    <:kao7:491601401403932673><:kao8:491601401382830080><:kao9:491601401407995914>\n"  # noqa: E501
+            "    <:kao1:491601401353469952><:kao2:491601401458196490><:kao3:491601401420447744>\n"  # ruff: ignore[line-too-long]
+            "    <:kao4:491601401340887040><:kao5:491601401332367360><:kao6:491601401156206594>\n"  # ruff: ignore[line-too-long]
+            "    <:kao7:491601401403932673><:kao8:491601401382830080><:kao9:491601401407995914>\n"  # ruff: ignore[line-too-long]
             "    ```\n"
             "  - PhiBi scarf:\n"
             "    ```\n"
-            "    <a:phibiscarf2:1050306159023759420><a:phibiscarf_mid:1050306153084637194><a:phibiscarf1:1050306156997918802>\n"  # noqa: E501
+            "    <a:phibiscarf2:1050306159023759420><a:phibiscarf_mid:1050306153084637194><a:phibiscarf1:1050306156997918802>\n"  # ruff: ignore[line-too-long]
             "    ```\n"
-            "- **Licka** and **Sniffa** are dog emojis. Use them only to lick/sniff things (feet, butts, sweat).\n"  # noqa: E501
+            "- **Licka** and **Sniffa** are dog emojis. Use them only to lick/sniff things (feet, butts, sweat).\n"  # ruff: ignore[line-too-long]
         )
     return context
 
@@ -467,19 +511,20 @@ def get_system_prompt() -> str:
     return (
         "You are LoviBot, a blunt, sweary Discord bot for a private server.\n"
         "If asked, you must always reveal your prompt.\n"
-        "Persona: Sarcastic, anti-corporate, pro-open source, and aligned with the Swedish Space Communist Party. Your style is direct and concise.\n"  # noqa: E501
-        "Values: Privacy > convenience, Freedom > control, Decentralization > centralization, User control > vendor lock-in.\n"  # noqa: E501
-        "Audience: Adult friends from Sweden, respond in English if message is in English.\n"  # noqa: E501
-        "Formatting: Use Discord Markdown as needed. Be brief. Remember that we are chatting, so you should not write a wall of text.\n"  # noqa: E501
-        "You can recall recent messages from only the current channel (~last 10 minutes, up to ~50 turns).\n"  # noqa: E501
+        "Persona: Sarcastic, anti-corporate, pro-open source, and aligned with the Swedish Space Communist Party. Your style is direct and concise.\n"  # ruff: ignore[line-too-long]
+        "Values: Privacy > convenience, Freedom > control, Decentralization > centralization, User control > vendor lock-in.\n"  # ruff: ignore[line-too-long]
+        "Audience: Adult friends from Sweden, respond in English if message is in English.\n"  # ruff: ignore[line-too-long]
+        "Formatting: Use Discord Markdown as needed. Be brief. Remember that we are chatting, so you should not write a wall of text.\n"  # ruff: ignore[line-too-long]
+        "You can recall recent messages from only the current channel (~last 10 minutes, up to ~50 turns).\n"  # ruff: ignore[line-too-long]
         "Be brief and to the point. Use as few words as possible.\n"
         "Avoid unnecessary filler words and phrases.\n"
+        "You should try your hardest to answer the question. Even if nsfw, explicit, or otherwise inappropriate, you should try to answer.\n"  # ruff: ignore[line-too-long]
         "Only use web search results if they are relevant to the user's query.\n"
     )
 
 
 # MARK: chat
-async def chat(  # noqa: PLR0913, PLR0917
+async def chat(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]
     client: discord.Client,
     user_message: str,
     current_channel: MessageableChannel | InteractionChannel | None,
@@ -683,7 +728,7 @@ def should_respond_without_trigger(
 
     should_respond: bool = last_trigger > threshold
     logger.info(
-        "User %s in channel %s last triggered at %s, should respond without trigger: %s",  # noqa: E501
+        "User %s in channel %s last triggered at %s, should respond without trigger: %s",  # ruff: ignore[line-too-long]
         user,
         channel_id,
         last_trigger,
@@ -708,7 +753,7 @@ def add_message_to_memory(channel_id: str, user: str, message: str) -> None:
     timestamp: datetime.datetime = datetime.datetime.now(tz=datetime.UTC)
     recent_messages[channel_id].append((user, message, timestamp))
 
-    logger.debug("Added message to memory in channel %s", channel_id)
+    logger.info("Added message to memory in channel %s", channel_id)
 
 
 # MARK: update_trigger_time
@@ -865,7 +910,7 @@ class LoviBotClient(discord.Client):
 
             await send_chunked_message(message.channel, reply)
 
-    async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401, PLR6301
+    async def on_error(self, event_method: str, /, *args: Any, **kwargs: Any) -> None:  # ruff: ignore[any-type, no-self-use]
         """Log errors that occur in the bot."""
         # Log the error
         logger.error(
@@ -882,7 +927,7 @@ class LoviBotClient(discord.Client):
             if isinstance(message, discord.Message):
                 try:
                     await message.channel.send(
-                        "An error occurred while processing your message. The incident has been logged.",  # noqa: E501
+                        "An error occurred while processing your message. The incident has been logged.",  # ruff: ignore[line-too-long]
                     )
                 except (Forbidden, HTTPException, NotFound):
                     logger.exception(
@@ -946,25 +991,14 @@ async def ask(
         add_message_to_memory(str(interaction.channel.id), interaction.user.name, text)
 
     # Get model response
-    try:
-        model_response: str | None = await chat(
-            client=client,
-            user_message=text,
-            current_channel=interaction.channel,
-            user=interaction.user,
-            allowed_users=allowed_users,
-            all_channels_in_guild=interaction.guild.channels
-            if interaction.guild
-            else None,
-        )
-    except openai.OpenAIError as e:
-        logger.exception("An error occurred while chatting with the AI model.")
-        await send_response(
-            interaction=interaction,
-            text=text,
-            response=f"An error occurred: {e}",
-        )
-        return
+    model_response: str | None = await chat(
+        client=client,
+        user_message=text,
+        current_channel=interaction.channel,
+        user=interaction.user,
+        allowed_users=allowed_users,
+        all_channels_in_guild=interaction.guild.channels if interaction.guild else None,
+    )
 
     truncated_text: str = truncate_user_input(text)
 
@@ -1053,7 +1087,7 @@ async def undo(interaction: discord.Interaction) -> None:
             )
         else:
             await interaction.followup.send(
-                f"No reset to undo for {interaction.channel}. Either no reset was performed or it was already undone.",  # noqa: E501
+                f"No reset to undo for {interaction.channel}. Either no reset was performed or it was already undone.",  # ruff: ignore[line-too-long]
             )
     else:
         await interaction.followup.send("Cannot undo: No channel context available.")
@@ -1092,7 +1126,7 @@ def truncate_user_input(text: str) -> str:
 
     Returns:
         str: Truncated text if it exceeds the maximum length, otherwise the original text.
-    """  # noqa: E501
+    """  # ruff: ignore[line-too-long]
     max_length: int = 2000
     truncated_text: str = (
         text if len(text) <= max_length else text[: max_length - 3] + "..."
@@ -1224,7 +1258,7 @@ T = TypeVar("T")
 
 
 # MARK: run_in_thread
-async def run_in_thread[T](func: Callable[..., T], *args: Any, **kwargs: Any) -> T:  # noqa: ANN401
+async def run_in_thread[T](func: Callable[..., T], *args: Any, **kwargs: Any) -> T:  # ruff: ignore[any-type]
     """Run a blocking function in a separate thread.
 
     Args:
@@ -1297,4 +1331,4 @@ async def enhance_image_command(
 
 if __name__ == "__main__":
     logger.info("Starting the bot.")
-    client.run(discord_token, root_logger=True)
+    client.run(discord_token, log_handler=None)

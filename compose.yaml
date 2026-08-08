@@ -1,0 +1,20 @@
+name: anewdawn
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: anewdawn:latest
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    env_file:
+      - .env
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN?DISCORD_TOKEN is required}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY?DEEPSEEK_API_KEY is required}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY?OLLAMA_API_KEY is required}

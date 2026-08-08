@@ -1,0 +1,29 @@
+# Version control
+.git
+.gitignore
+
+# CI / editor / tooling
+.github
+.vscode
+.pre-commit-config.yaml
+
+# Local environment / secrets
+.env
+.env.*
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+
+# Tests & build artifacts
+tests/
+dist/
+build/
+*.egg-info/
+
+# Deployment templates
+systemd/

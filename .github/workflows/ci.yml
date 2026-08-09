@@ -2,7 +2,11 @@ name: CI
 
 on:
   push:
+    paths-ignore:
+      - "*.md"
   pull_request:
+    paths-ignore:
+      - "*.md"
   workflow_dispatch:
 
 jobs:
@@ -14,7 +18,7 @@ jobs:
       DEEPSEEK_API_KEY: "0"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Install dependencies
         run: uv sync --all-extras --dev -U
@@ -28,17 +32,61 @@ jobs:
       - name: Run tests
         run: uv run pytest
 
-      # NOTE: The runner must be allowed to run these commands without a password.
-      #   sudo EDITOR=nvim visudo
-      #   forgejo-runner ALL=(lovinator) NOPASSWD: /usr/bin/git -C /home/lovinator/ANewDawn pull
-      #   forgejo-runner ALL=(root) NOPASSWD: /bin/systemctl restart anewdawn.service
-      #   forgejo-runner ALL=(lovinator) NOPASSWD: /usr/bin/uv sync -U --all-extras --dev --directory /home/lovinator/ANewDawn
-      - name: Deploy & restart bot (master only)
-        if: ${{ success() && github.ref == 'refs/heads/master' }}
-        run: |
-          # Keep checkout in the Forgejo runner workspace, whatever that is.
-          # actions/checkout already checks out to the runner's working directory.
+  build:
+    needs: ci
+    runs-on: self-hosted
 
-          sudo -u lovinator git -C /home/lovinator/ANewDawn pull
-          sudo -u lovinator uv sync -U --all-extras --dev --directory /home/lovinator/ANewDawn
-          sudo systemctl restart anewdawn.service
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - id: tags
+        name: Compute image tags
+        run: |
+          IMAGE="git.lovinator.space/TheLovinator/ANewDawn"
+          if [ "${FORGEJO_REF}" = "refs/heads/master" ]; then
+            echo "tags=${IMAGE}:latest,${IMAGE}:master" >> "$FORGEJO_OUTPUT"
+          else
+            SHORT_SHA="$(echo "$FORGEJO_SHA" | cut -c1-12)"
+            echo "tags=${IMAGE}:sha-${SHORT_SHA}" >> "$FORGEJO_OUTPUT"
+          fi
+
+      - name: Login to Forgejo Container Registry
+        run: echo "${{ github.token }}" | docker login git.lovinator.space -u "${{ github.actor }}" --password-stdin
+
+      # Build and (optionally) push the Docker image
+      - name: Build and push Docker image
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          IFS=',' read -r -a tag_array <<< "$TAGS"
+          tag_args=()
+          for tag in "${tag_array[@]}"; do
+            tag_args+=( -t "$tag" )
+          done
+
+          publish=0
+          if [ "${FORGEJO_REF}" = "refs/heads/master" ]; then
+            publish=1
+          fi
+
+          # PR tokens are read-only, so PR builds can't write to the Actions layer cache.
+          cache_to=()
+          if [ "${publish}" = "1" ] || [ "${FORGEJO_EVENT_NAME}" != "pull_request" ]; then
+            cache_to=(--cache-to type=gha,mode=max)
+          fi
+
+          mode=(--load)
+          if [ "${publish}" = "1" ]; then
+            mode=(--push)
+          fi
+
+          # amd64 is the runner's native platform, so no --platform flag is needed.
+          docker buildx build \
+            --cache-from type=gha \
+            --build-arg "BUILD_SOURCE=https://git.lovinator.space/TheLovinator/ANewDawn" \
+            --build-arg "BUILD_REVISION=${FORGEJO_SHA}" \
+            --build-arg "BUILD_CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            "${cache_to[@]}" \
+            "${mode[@]}" \
+            "${tag_args[@]}" \
+            .

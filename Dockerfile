@@ -19,6 +19,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:3.13-slim AS runtime
 
+ARG BUILD_SOURCE=""
+ARG BUILD_REVISION=""
+ARG BUILD_CREATED=""
+
+LABEL org.opencontainers.image.source="${BUILD_SOURCE}" \
+    org.opencontainers.image.revision="${BUILD_REVISION}" \
+    org.opencontainers.image.created="${BUILD_CREATED}" \
+    org.opencontainers.image.title="ANewDawn"
+
 RUN groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app app
 

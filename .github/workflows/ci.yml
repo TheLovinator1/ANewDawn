@@ -51,7 +51,7 @@ jobs:
           fi
 
       - name: Login to Forgejo Container Registry
-        run: echo "${{ github.token }}" | docker login git.lovinator.space -u "${{ github.actor }}" --password-stdin
+        run: echo "${{ secrets.PACKAGE_TOKEN }}" | docker login git.lovinator.space -u "${{ github.actor }}" --password-stdin
 
       # Build and (optionally) push the Docker image
       - name: Build and push Docker image
@@ -69,24 +69,16 @@ jobs:
             publish=1
           fi
 
-          # PR tokens are read-only, so PR builds can't write to the Actions layer cache.
-          cache_to=()
-          if [ "${publish}" = "1" ] || [ "${FORGEJO_EVENT_NAME}" != "pull_request" ]; then
-            cache_to=(--cache-to type=gha,mode=max)
-          fi
-
           mode=(--load)
           if [ "${publish}" = "1" ]; then
             mode=(--push)
           fi
 
-          # amd64 is the runner's native platform, so no --platform flag is needed.
           docker buildx build \
             --cache-from type=gha \
             --build-arg "BUILD_SOURCE=https://git.lovinator.space/TheLovinator/ANewDawn" \
             --build-arg "BUILD_REVISION=${FORGEJO_SHA}" \
             --build-arg "BUILD_CREATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            "${cache_to[@]}" \
             "${mode[@]}" \
             "${tag_args[@]}" \
             .

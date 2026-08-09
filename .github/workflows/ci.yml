@@ -42,7 +42,7 @@ jobs:
       - id: tags
         name: Compute image tags
         run: |
-          IMAGE="git.lovinator.space/TheLovinator/ANewDawn"
+          IMAGE="git.lovinator.space/thelovinator/anewdawn"
           if [ "${FORGEJO_REF}" = "refs/heads/master" ]; then
             echo "tags=${IMAGE}:latest,${IMAGE}:master" >> "$FORGEJO_OUTPUT"
           else

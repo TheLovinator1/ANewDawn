@@ -11,9 +11,12 @@ from dataclasses import dataclass
 from logging import basicConfig
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import ClassVar
 from typing import Literal
 from typing import Self
+from typing import TypedDict
 from typing import TypeVar
+from typing import cast
 
 import cv2
 import discord
@@ -69,6 +72,8 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 discord_token: str = os.getenv("DISCORD_TOKEN", "")
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_TOKEN", "")
+gitea_token: str = os.getenv("GITEA_TOKEN", "")
+gitea_base_url: str = os.getenv("GITEA_BASE_URL", "https://git.lovinator.space")
 
 recent_messages: dict[str, deque[tuple[str, str, datetime.datetime]]] = {}
 last_trigger_time: dict[str, dict[str, datetime.datetime]] = {}
@@ -1327,6 +1332,374 @@ async def enhance_image_command(
         files: list[discord.File] = [file1, file2, file3]
 
         await interaction.followup.send("Enhanced version:", files=files)
+
+
+# MARK: parse_gitea_repo
+_gitea_repo_pattern: re.Pattern[str] = re.compile(
+    r"^(?:(?:https?://)?[^/\s]+/)?(?P<owner>[^/\s]+)/(?P<repo>[^/\s]+?)(?:\.git)?/?$",
+)
+
+
+def parse_gitea_repo(text: str) -> tuple[str, str] | None:
+    """Extract the owner and repository name from a Gitea URL or identifier.
+
+    Accepts the following forms, e.g. for the ANewDawn repository:
+
+    - ``https://git.lovinator.space/TheLovinator/ANewDawn``
+    - ``git.lovinator.space/TheLovinator/ANewDawn``
+    - ``TheLovinator/ANewDawn``
+    - ``TheLovinator/ANewDawn.git``
+
+    Args:
+        text (str): The repository URL or identifier to parse.
+
+    Returns:
+        tuple[str, str] | None: A tuple of ``(owner, repo)``, or ``None`` if
+            the input could not be parsed.
+    """
+    match: re.Match[str] | None = _gitea_repo_pattern.fullmatch(text.strip())
+    if match is None:
+        return None
+    return match.group("owner"), match.group("repo")
+
+
+# MARK: create_gitea_issue
+class GiteaError(Exception):
+    """Raised when a request to the Gitea API fails."""
+
+
+class GiteaIssue(TypedDict, total=False):
+    """An issue as returned by the Gitea API."""
+
+    html_url: str
+    number: int
+
+
+async def create_gitea_issue(
+    owner: str,
+    repo: str,
+    title: str,
+    body: str,
+) -> GiteaIssue:
+    """Create an issue in a Gitea repository through the API.
+
+    Args:
+        owner (str): The owner of the repository (user or organization).
+        repo (str): The name of the repository.
+        title (str): The title of the issue.
+        body (str): The description/body of the issue.
+
+    Returns:
+        GiteaIssue: The created issue as returned by the Gitea API.
+
+    Raises:
+        GiteaError: If the request fails or the API returns an error.
+    """
+    if not gitea_token:
+        msg = "GITEA_TOKEN is not set. Add it to your environment to create issues."
+        raise GiteaError(
+            msg,
+        )
+
+    api_url: str = f"{gitea_base_url.rstrip('/')}/api/v1/repos/{owner}/{repo}/issues"
+    payload: dict[str, str] = {"title": title, "body": body}
+    headers: dict[str, str] = {
+        "Authorization": f"token {gitea_token}",
+        "Accept": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            response: httpx.Response = await http_client.post(
+                api_url,
+                json=payload,
+                headers=headers,
+            )
+    except httpx.RequestError as e:
+        message: str = f"Could not reach {gitea_base_url}: {e}"
+        raise GiteaError(message) from e
+
+    if response.is_success:
+        issue_data: GiteaIssue = response.json()
+        return issue_data
+
+    if response.status_code == cast("int", httpx.codes.UNAUTHORIZED):
+        message = (
+            "The Gitea token is invalid or missing. "
+            "Check the `GITEA_TOKEN` environment variable."
+        )
+    elif response.status_code == cast("int", httpx.codes.FORBIDDEN):
+        message = (
+            "The Gitea token does not have permission to create "
+            f"issues in `{owner}/{repo}`."
+        )
+    elif response.status_code == cast("int", httpx.codes.NOT_FOUND):
+        message = f"Repository `{owner}/{repo}` was not found on {gitea_base_url}."
+    elif response.status_code == cast("int", httpx.codes.UNPROCESSABLE_ENTITY):
+        message = f"Gitea rejected the issue (HTTP 422): {response.text}"
+    else:
+        message = f"Gitea API returned HTTP {response.status_code}: {response.text}"
+    raise GiteaError(message)
+
+
+# MARK: search_gitea_repos
+class GiteaRepo(TypedDict, total=False):
+    """A repository as returned by the Gitea repo search API."""
+
+    full_name: str
+
+
+class GiteaRepoSearchResponse(TypedDict, total=False):
+    """The response of the Gitea repo search API."""
+
+    ok: bool
+    data: list[GiteaRepo]
+
+
+def parse_repo_search_results(search_result: GiteaRepoSearchResponse) -> list[str]:
+    """Extract repository full names from a Gitea repo search response.
+
+    Args:
+        search_result (GiteaRepoSearchResponse): The response from the Gitea
+            repo search API.
+
+    Returns:
+        list[str]: The full names (``owner/repo``) of the matching repositories.
+    """
+    repo_names: list[str] = []
+    for repo in search_result.get("data", []):
+        full_name: str = repo.get("full_name", "")
+        if full_name:
+            repo_names.append(full_name)
+    return repo_names
+
+
+async def search_gitea_repos(query: str, limit: int = 25) -> list[str]:
+    """Search for repositories on the Gitea instance.
+
+    Results are sorted by most recently updated first, which is the closest
+    server-side proxy for "last commit" activity.
+
+    Args:
+        query (str): The search query to match against repository names.
+        limit (int): The maximum number of repositories to return.
+
+    Returns:
+        list[str]: The full names (``owner/repo``) of the matching repositories.
+    """
+    if not gitea_token:
+        return []
+
+    # `order` is used by Forgejo, `order_by` by some Gitea versions; the
+    # instance ignores whichever one it does not recognize.
+    params: dict[str, str | int] = {
+        "limit": limit,
+        "sort": "updated",
+        "order": "desc",
+        "order_by": "desc",
+    }
+    if query:
+        params["q"] = query
+
+    headers: dict[str, str] = {
+        "Authorization": f"token {gitea_token}",
+        "Accept": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as http_client:
+            response: httpx.Response = await http_client.get(
+                f"{gitea_base_url.rstrip('/')}/api/v1/repos/search",
+                params=params,
+                headers=headers,
+            )
+    except httpx.RequestError:
+        logger.exception("Gitea repository search failed")
+        return []
+
+    if not response.is_success:
+        logger.warning(
+            "Gitea repository search returned HTTP %s: %s",
+            response.status_code,
+            response.text,
+        )
+        return []
+
+    search_result: GiteaRepoSearchResponse = response.json()
+    if not isinstance(search_result.get("data"), list):
+        return []
+
+    return parse_repo_search_results(search_result)[:limit]
+
+
+# MARK: IssueModal
+class IssueModal(discord.ui.Modal, title="Create Gitea Issue"):
+    """Modal that collects the details for a new Gitea issue."""
+
+    repo_input: ClassVar[discord.ui.TextInput[discord.ui.Modal]] = discord.ui.TextInput(
+        label="Repository",
+        placeholder="TheLovinator/ANewDawn",
+        max_length=255,
+        required=True,
+    )
+    title_input: ClassVar[discord.ui.TextInput[discord.ui.Modal]] = (
+        discord.ui.TextInput(
+            label="Title",
+            placeholder="Short summary of the issue",
+            max_length=255,
+            required=True,
+        )
+    )
+    description_input: ClassVar[discord.ui.TextInput[discord.ui.Modal]] = (
+        discord.ui.TextInput(
+            label="Description",
+            style=discord.TextStyle.paragraph,
+            placeholder="Details of the issue",
+            max_length=4000,
+            required=False,
+        )
+    )
+
+    def __init__(
+        self,
+        *,
+        repo: str = "",
+        title: str = "",
+        description: str = "",
+    ) -> None:
+        """Initialize the modal with optional pre-filled values."""
+        super().__init__()
+        self.repo_input.default = repo
+        self.title_input.default = title
+        self.description_input.default = description
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        """Create the issue when the modal is submitted."""
+        await interaction.response.defer(thinking=True)
+
+        parsed_repo: tuple[str, str] | None = parse_gitea_repo(
+            self.repo_input.value or "",
+        )
+        if parsed_repo is None:
+            await interaction.followup.send(
+                f"Could not parse `{self.repo_input.value}` as a repository. "
+                "Use the format `owner/repo`, e.g. `TheLovinator/ANewDawn`.",
+                ephemeral=True,
+            )
+            return
+
+        owner, repo_name = parsed_repo
+        issue: GiteaIssue = await create_gitea_issue(
+            owner=owner,
+            repo=repo_name,
+            title=self.title_input.value or "Untitled issue",
+            body=self.description_input.value or "",
+        )
+
+        issue_url: str = issue.get("html_url", "")
+        issue_number: int = issue.get("number", 0)
+        await interaction.followup.send(
+            f"Created issue `{owner}/{repo_name}#{issue_number}`: {issue_url}",
+        )
+
+
+# MARK: /issue command
+@client.tree.command(
+    name="issue",
+    description="Create an issue on git.lovinator.space",
+)
+@app_commands.allowed_installs(guilds=True, users=True)
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.describe(
+    repo="The repository to create the issue in, e.g. TheLovinator/ANewDawn",
+)
+async def issue_command(
+    interaction: discord.Interaction,
+    repo: str,
+) -> None:
+    """Create a Gitea issue via a modal.
+
+    Args:
+        interaction (discord.Interaction): The interaction object.
+        repo (str): The repository URL or identifier to create the issue in.
+    """
+    user_name_lowercase: str = interaction.user.name.lower()
+    allowed_users: list[str] = get_allowed_users()
+    if user_name_lowercase not in allowed_users:
+        await interaction.response.send_message(
+            "You are not authorized to use this command.",
+            ephemeral=True,
+        )
+        return
+
+    parsed_repo: tuple[str, str] | None = parse_gitea_repo(repo)
+    if parsed_repo is None:
+        await interaction.response.send_message(
+            f"Could not parse `{repo}` as a repository. "
+            "Use the format `owner/repo`, e.g. `TheLovinator/ANewDawn`, "
+            "or a full URL such as "
+            "`https://git.lovinator.space/TheLovinator/ANewDawn`.",
+            ephemeral=True,
+        )
+        return
+
+    owner, repo_name = parsed_repo
+    await interaction.response.send_modal(IssueModal(repo=f"{owner}/{repo_name}"))
+
+
+@issue_command.autocomplete("repo")
+async def issue_repo_autocomplete(
+    _interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    """Autocomplete the repository parameter for the /issue command.
+
+    Args:
+        _interaction (discord.Interaction): The interaction object.
+        current (str): The current value of the parameter being autocompleted.
+
+    Returns:
+        list[app_commands.Choice[str]]: Up to 25 matching repositories.
+    """
+    repo_names: list[str] = await search_gitea_repos(current)
+    return [
+        app_commands.Choice(name=repo_name, value=repo_name)
+        for repo_name in repo_names[:25]
+    ]
+
+
+# MARK: Create Issue context menu
+@client.tree.context_menu(name="Create Issue")
+@app_commands.allowed_installs(guilds=True, users=True)
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+async def create_issue_from_message(
+    interaction: discord.Interaction,
+    message: discord.Message,
+) -> None:
+    """Create a Gitea issue from a message using a modal.
+
+    Args:
+        interaction (discord.Interaction): The interaction object.
+        message (discord.Message): The message to create the issue from.
+    """
+    user_name_lowercase: str = interaction.user.name.lower()
+    allowed_users: list[str] = get_allowed_users()
+    if user_name_lowercase not in allowed_users:
+        await interaction.response.send_message(
+            "You are not authorized to use this command.",
+            ephemeral=True,
+        )
+        return
+
+    description: str = message.content or ""
+    if message.jump_url:
+        description = f"{description}\n\nSource: {message.jump_url}"
+    description = description[:4000]
+
+    title: str = f"Issue from {message.author.display_name}"
+    await interaction.response.send_modal(
+        IssueModal(title=title, description=description),
+    )
 
 
 if __name__ == "__main__":

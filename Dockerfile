@@ -17,7 +17,7 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-FROM python:3.13-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ARG BUILD_SOURCE=""
 ARG BUILD_REVISION=""

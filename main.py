@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import datetime
+import datetime as dt
 import io
 import logging
 import os
@@ -75,13 +75,13 @@ os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_TOKEN", "")
 gitea_token: str = os.getenv("GITEA_TOKEN", "")
 gitea_base_url: str = os.getenv("GITEA_BASE_URL", "https://git.lovinator.space")
 
-recent_messages: dict[str, deque[tuple[str, str, datetime.datetime]]] = {}
-last_trigger_time: dict[str, dict[str, datetime.datetime]] = {}
+recent_messages: dict[str, deque[tuple[str, str, dt.datetime]]] = {}
+last_trigger_time: dict[str, dict[str, dt.datetime]] = {}
 
 # Storage for reset snapshots to enable undo functionality
 reset_snapshots: dict[
     str,
-    tuple[deque[tuple[str, str, datetime.datetime]], dict[str, datetime.datetime]],
+    tuple[deque[tuple[str, str, dt.datetime]], dict[str, dt.datetime]],
 ] = {}
 
 
@@ -117,13 +117,13 @@ def reset_memory(channel_id: str) -> None:
         channel_id (str): The ID of the channel to reset memory for.
     """
     # Create snapshot before reset for undo functionality
-    messages_snapshot: deque[tuple[str, str, datetime.datetime]] = (
+    messages_snapshot: deque[tuple[str, str, dt.datetime]] = (
         deque(recent_messages[channel_id], maxlen=50)
         if channel_id in recent_messages
         else deque(maxlen=50)
     )
 
-    trigger_snapshot: dict[str, datetime.datetime] = (
+    trigger_snapshot: dict[str, dt.datetime] = (
         dict(last_trigger_time[channel_id]) if channel_id in last_trigger_time else {}
     )
 
@@ -319,7 +319,7 @@ def get_time_and_timezone() -> str:
     Returns:
         A string with the current time and timezone information.
     """
-    current_time: datetime.datetime = datetime.datetime.now(tz=datetime.UTC)
+    current_time: dt.datetime = dt.datetime.now(tz=dt.UTC)
     str_time: str = current_time.strftime("%Y-%m-%d %H:%M:%S %Z")
 
     return f"Current time: {str_time}"
@@ -618,9 +618,9 @@ def get_recent_messages(
     if str(channel_id) not in recent_messages:
         return []
 
-    threshold: datetime.datetime = datetime.datetime.now(
-        tz=datetime.UTC,
-    ) - datetime.timedelta(minutes=age)
+    threshold: dt.datetime = dt.datetime.now(
+        tz=dt.UTC,
+    ) - dt.timedelta(minutes=age)
     return [
         (user, message)
         for user, message, timestamp in recent_messages[str(channel_id)]
@@ -726,10 +726,10 @@ def should_respond_without_trigger(
     if channel_id not in last_trigger_time or user not in last_trigger_time[channel_id]:
         return False
 
-    last_trigger: datetime.datetime = last_trigger_time[channel_id][user]
-    threshold: datetime.datetime = datetime.datetime.now(
-        tz=datetime.UTC,
-    ) - datetime.timedelta(seconds=threshold_seconds)
+    last_trigger: dt.datetime = last_trigger_time[channel_id][user]
+    threshold: dt.datetime = dt.datetime.now(
+        tz=dt.UTC,
+    ) - dt.timedelta(seconds=threshold_seconds)
 
     should_respond: bool = last_trigger > threshold
     logger.info(
@@ -755,7 +755,7 @@ def add_message_to_memory(channel_id: str, user: str, message: str) -> None:
     if channel_id not in recent_messages:
         recent_messages[channel_id] = deque(maxlen=50)
 
-    timestamp: datetime.datetime = datetime.datetime.now(tz=datetime.UTC)
+    timestamp: dt.datetime = dt.datetime.now(tz=dt.UTC)
     recent_messages[channel_id].append((user, message, timestamp))
 
     logger.info("Added message to memory in channel %s", channel_id)
@@ -772,7 +772,7 @@ def update_trigger_time(channel_id: str, user: str) -> None:
     if channel_id not in last_trigger_time:
         last_trigger_time[channel_id] = {}
 
-    last_trigger_time[channel_id][user] = datetime.datetime.now(tz=datetime.UTC)
+    last_trigger_time[channel_id][user] = dt.datetime.now(tz=dt.UTC)
     logger.info("Updated trigger time for user %s in channel %s", user, channel_id)
 
 
@@ -934,7 +934,7 @@ class LoviBotClient(discord.Client):
                     await message.channel.send(
                         "An error occurred while processing your message. The incident has been logged.",  # ruff: ignore[line-too-long]
                     )
-                except (Forbidden, HTTPException, NotFound):
+                except Forbidden, HTTPException, NotFound:
                     logger.exception(
                         "Failed to send error message to channel %s",
                         message.channel.id,
@@ -1297,7 +1297,7 @@ async def enhance_image_command(
             try:
                 img_bytes: bytes = await attachment.read()
                 images.append(img_bytes)
-            except (TimeoutError, HTTPException, Forbidden, NotFound):
+            except TimeoutError, HTTPException, Forbidden, NotFound:
                 logger.exception("Failed to read attachment %s", attachment.url)
 
     if not images:
@@ -1307,7 +1307,7 @@ async def enhance_image_command(
         return
 
     for image in images:
-        timestamp: str = datetime.datetime.now(tz=datetime.UTC).isoformat()
+        timestamp: str = dt.datetime.now(tz=dt.UTC).isoformat()
 
         enhanced_image1, enhanced_image2, enhanced_image3 = await asyncio.gather(
             run_in_thread(enhance_image1, image),

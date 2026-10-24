@@ -3,7 +3,7 @@ name = "anewdawn"
 version = "0.1.0"
 description = "My shit bot"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.15"
 dependencies = [
     "discord-py",
     "httpx",
@@ -37,40 +37,40 @@ lint.select = ["ALL"]
 # Don't automatically remove unused variables
 lint.unfixable = ["unused-variable"]
 lint.ignore = [
-    "missing-copyright-notice", # Checks for the absence of copyright notices within Python files.
-    "undocumented-public-module",   # Checks for undocumented public module definitions.
-    "undocumented-public-package",   # Checks for undocumented public package definitions.
-    "undocumented-public-nested-class",   # Checks for undocumented public class definitions, for nested classes.
-    "commented-out-code", # Checks for commented-out Python code.
-    "line-contains-todo", # Checks for "TODO" comments.
+    "missing-copyright-notice",         # Checks for the absence of copyright notices within Python files.
+    "undocumented-public-module",       # Checks for undocumented public module definitions.
+    "undocumented-public-package",      # Checks for undocumented public package definitions.
+    "undocumented-public-nested-class", # Checks for undocumented public class definitions, for nested classes.
+    "commented-out-code",               # Checks for commented-out Python code.
+    "line-contains-todo",               # Checks for "TODO" comments.
 
     # Conflicting lint rules when using Ruff's formatter
     # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
-    "missing-trailing-comma", # Checks for the absence of trailing commas.
-    "prohibited-trailing-comma", # Checks for the presence of prohibited trailing commas.
-    "docstring-tab-indentation",   # Checks for docstrings that are indented with tabs.
-    "triple-single-quotes",   # Checks for docstrings that use '''triple single quotes''' instead of """triple double quotes""".
-    "indentation-with-invalid-multiple",   # Checks for indentation with a non-multiple of 4 spaces.
-    "indentation-with-invalid-multiple-comment",   # Checks for indentation of comments with a non-multiple of 4 spaces.
-    "over-indented",   # Checks for over-indented code.
+    "missing-trailing-comma",                    # Checks for the absence of trailing commas.
+    "prohibited-trailing-comma",                 # Checks for the presence of prohibited trailing commas.
+    "docstring-tab-indentation",                 # Checks for docstrings that are indented with tabs.
+    "triple-single-quotes",                      # Checks for docstrings that use '''triple single quotes''' instead of """triple double quotes""".
+    "indentation-with-invalid-multiple",         # Checks for indentation with a non-multiple of 4 spaces.
+    "indentation-with-invalid-multiple-comment", # Checks for indentation of comments with a non-multiple of 4 spaces.
+    "over-indented",                             # Checks for over-indented code.
     "single-line-implicit-string-concatenation", # Checks for implicitly concatenated strings on a single line.
-    "multi-line-implicit-string-concatenation", # Checks for implicitly concatenated strings that span multiple lines.
-    "bad-quotes-inline-string",   # Checks for inline strings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.inline-quotes option.
-    "bad-quotes-multiline-string",   # Checks for multiline strings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.multiline-quotes setting.
-    "bad-quotes-docstring",   # Checks for docstrings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.docstring-quotes setting.
-    "avoidable-escaped-quote",   # Checks for strings that include escaped quotes, and suggests changing the quote style to avoid the need to escape them.
-    "tab-indentation",   # Checks for indentation that uses tabs.
+    "multi-line-implicit-string-concatenation",  # Checks for implicitly concatenated strings that span multiple lines.
+    "bad-quotes-inline-string",                  # Checks for inline strings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.inline-quotes option.
+    "bad-quotes-multiline-string",               # Checks for multiline strings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.multiline-quotes setting.
+    "bad-quotes-docstring",                      # Checks for docstrings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.docstring-quotes setting.
+    "avoidable-escaped-quote",                   # Checks for strings that include escaped quotes, and suggests changing the quote style to avoid the need to escape them.
+    "tab-indentation",                           # Checks for indentation that uses tabs.
 ]
 
 
 [tool.ruff.lint.per-file-ignores]
 "**/test_*.py" = [
-    "ARG",     # Unused function args -> fixtures nevertheless are functionally relevant...
-    "FBT",     # Don't care about booleans as positional arguments in tests, e.g. via @pytest.mark.parametrize()
-    "magic-value-comparison", # Magic value used in comparison, ...
-    "no-self-use", # Method could be a function, class method, or static method
-    "assert",    # asserts allowed in tests...
-    "suspicious-non-cryptographic-random-usage",    # Standard pseudo-random generators are not suitable for cryptographic purposes
+    "ARG",                                       # Unused function args -> fixtures nevertheless are functionally relevant...
+    "FBT",                                       # Don't care about booleans as positional arguments in tests, e.g. via @pytest.mark.parametrize()
+    "magic-value-comparison",                    # Magic value used in comparison, ...
+    "no-self-use",                               # Method could be a function, class method, or static method
+    "assert",                                    # asserts allowed in tests...
+    "suspicious-non-cryptographic-random-usage", # Standard pseudo-random generators are not suitable for cryptographic purposes
 ]
 
 # https://pytest-django.readthedocs.io/en/latest/

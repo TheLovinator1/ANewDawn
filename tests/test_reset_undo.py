@@ -11,7 +11,7 @@ from main import undo_reset
 from main import update_trigger_time
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True)  # ruff: ignore[pytest-fixture-autouse]
 def clear_state() -> None:
     """Clear all state before each test."""
     recent_messages.clear()

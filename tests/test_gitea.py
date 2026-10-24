@@ -100,7 +100,7 @@ class TestParseRepoSearchResults:
 class TestSearchGiteaRepos:
     """Tests for the search_gitea_repos function."""
 
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(autouse=True)  # ruff: ignore[pytest-fixture-autouse]
     def _clear_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Ensure no network request is made by clearing the token."""
         monkeypatch.setattr("main.gitea_token", "")

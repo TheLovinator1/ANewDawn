@@ -9,6 +9,7 @@ import os
 import re
 from collections import deque
 from dataclasses import dataclass
+from dataclasses import field
 from logging import basicConfig
 from typing import TYPE_CHECKING
 from typing import Any
@@ -37,8 +38,10 @@ from pydantic_ai import ImageUrl
 from pydantic_ai.messages import ModelRequest
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.messages import TextPart
+from pydantic_ai.messages import ThinkingPart
+from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.messages import ToolReturnPart
 from pydantic_ai.messages import UserPromptPart
-from pydantic_ai.models.openai import OpenAIResponsesModelSettings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -53,6 +56,7 @@ if TYPE_CHECKING:
     from discord.guild import GuildChannel
     from discord.interactions import InteractionChannel
     from pydantic_ai import RunContext
+    from pydantic_ai.messages import ModelMessage
     from pydantic_ai.run import AgentRunResult
 
 load_dotenv(verbose=True)
@@ -98,13 +102,20 @@ class BotDependencies:
     all_channels_in_guild: Sequence[GuildChannel] | None = None
 
 
-openai_settings: OpenAIResponsesModelSettings = OpenAIResponsesModelSettings(
-    openai_text_verbosity="low",
-)
+@dataclass
+class ChatResult:
+    """The model's answer, plus the reasoning and sources behind it."""
+
+    output: str
+    thinking: str = ""
+    sources: list[str] = field(default_factory=list)
+
+
+# The `deepseek:` prefix selects Chat Completions. Keep it: the bot sends image
+# inputs, and Pydantic AI's DeepSeek Responses path replaces images with text.
 chatgpt_agent: Agent[BotDependencies, str] = Agent(
     model="deepseek:deepseek-flash",
     deps_type=BotDependencies,
-    model_settings=openai_settings,
 )
 
 
@@ -658,6 +669,186 @@ def get_system_prompt() -> str:
     )
 
 
+# MARK: chat result helpers
+THINKING_MAX_CHARS: int = 1500
+SOURCES_MAX: int = 10
+
+
+def get_thinking(messages: Sequence[ModelMessage]) -> str:
+    """Extract the model's reasoning from the messages of a run.
+
+    Args:
+        messages (Sequence[ModelMessage]): The messages produced by the run.
+
+    Returns:
+        str: The reasoning text, or an empty string if the model did not think.
+    """
+    thinking: list[str] = []
+    for message in messages:
+        if not isinstance(message, ModelResponse):
+            continue
+        thinking.extend(
+            part.content.strip()
+            for part in message.parts
+            if isinstance(part, ThinkingPart) and part.content.strip()
+        )
+    return "\n\n".join(thinking)
+
+
+def _add_source(sources: list[str], url: object) -> None:
+    """Add a URL to the source list if it is valid and not already present.
+
+    Args:
+        sources (list[str]): The source list to update.
+        url (object): The candidate URL.
+    """
+    if (
+        isinstance(url, str)
+        and url.startswith(("http://", "https://"))
+        and url not in sources
+    ):
+        sources.append(url)
+
+
+def _tool_args(part: ToolCallPart) -> dict[str, Any]:
+    """Return the parsed arguments of a tool call.
+
+    Args:
+        part (ToolCallPart): The tool call part.
+
+    Returns:
+        dict[str, Any]: The parsed arguments, or an empty dict.
+    """
+    args: Any = part.args
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except ValueError:
+            return {}
+    return args if isinstance(args, dict) else {}
+
+
+def _search_result_urls(part: ToolReturnPart) -> list[str]:
+    """Extract the result URLs from a `web_search` tool return.
+
+    Args:
+        part (ToolReturnPart): The tool return part.
+
+    Returns:
+        list[str]: The URLs found in the tool return.
+    """
+    if not isinstance(part.content, str):
+        return []
+    try:
+        results: Any = json.loads(part.content)
+    except ValueError:
+        return []
+    if not isinstance(results, list):
+        return []
+    return [
+        result["url"]
+        for result in results
+        if isinstance(result, dict)
+        and isinstance(result.get("url"), str)
+        and result["url"].startswith(("http://", "https://"))
+    ]
+
+
+def get_sources(messages: Sequence[ModelMessage]) -> list[str]:
+    """Extract the URLs the model looked up during a run.
+
+    Args:
+        messages (Sequence[ModelMessage]): The messages produced by the run.
+
+    Returns:
+        list[str]: The de-duplicated source URLs, in the order they were used.
+    """
+    sources: list[str] = []
+    for message in messages:
+        if isinstance(message, ModelResponse):
+            for part in message.parts:
+                if (
+                    isinstance(part, ToolCallPart)
+                    and part.tool_name == "fetch_web_page"
+                ):
+                    _add_source(sources, _tool_args(part).get("url"))
+        elif isinstance(message, ModelRequest):
+            for part in message.parts:
+                if isinstance(part, ToolReturnPart) and part.tool_name == "web_search":
+                    for url in _search_result_urls(part):
+                        _add_source(sources, url)
+    return sources[:SOURCES_MAX]
+
+
+def format_thinking(thinking: str) -> str:
+    """Format reasoning as a Discord Markdown code block.
+
+    Args:
+        thinking (str): The raw reasoning text.
+
+    Returns:
+        str: A fenced code block, or an empty string if there is no reasoning.
+    """
+    thinking = thinking.strip()
+    if not thinking:
+        return ""
+    if len(thinking) > THINKING_MAX_CHARS:
+        thinking = thinking[: THINKING_MAX_CHARS - 3].rstrip() + "..."
+    longest_run: int = max(
+        (len(run) for run in re.findall(r"`+", thinking)),
+        default=0,
+    )
+    fence: str = "`" * max(3, longest_run + 1)
+    return f"{fence}\n{thinking}\n{fence}"
+
+
+def append_sources(output: str, sources: Sequence[str]) -> str:
+    """Append source URLs that the answer does not already mention.
+
+    Args:
+        output (str): The model's answer.
+        sources (Sequence[str]): The source URLs used during the run.
+
+    Returns:
+        str: The answer with a source list appended when needed.
+    """
+    missing: list[str] = [source for source in sources if source not in output]
+    if not missing:
+        return output
+    source_lines: str = "\n".join(f"- <{source}>" for source in missing)
+    return f"{output}\n\n**Sources:**\n{source_lines}"
+
+
+def compose_response(answer: str, thinking: str) -> str:
+    """Put the model's reasoning in a code block before its answer.
+
+    Args:
+        answer (str): The model's answer, including any source list.
+        thinking (str): The model's reasoning.
+
+    Returns:
+        str: The reasoning block followed by the answer.
+    """
+    thinking_block: str = format_thinking(thinking)
+    return f"{thinking_block}\n{answer}" if thinking_block else answer
+
+
+def build_responses(chat_result: ChatResult | None) -> tuple[str, str]:
+    """Build the memory and display versions of a chat result.
+
+    Args:
+        chat_result (ChatResult | None): The result of the chat run.
+
+    Returns:
+        tuple[str, str]: The answer for memory, and the answer to display.
+    """
+    fallback: str = "I forgor how to think 💀"
+    if not chat_result or not chat_result.output:
+        return fallback, fallback
+    answer: str = append_sources(chat_result.output, chat_result.sources)
+    return answer, compose_response(answer, chat_result.thinking)
+
+
 # MARK: chat
 async def chat(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]
     client: discord.Client,
@@ -666,7 +857,7 @@ async def chat(  # ruff: ignore[too-many-arguments, too-many-positional-argument
     user: User | Member,
     allowed_users: list[str],
     all_channels_in_guild: Sequence[GuildChannel] | None = None,
-) -> str | None:
+) -> ChatResult | None:
     """Chat with the bot using the Pydantic AI agent.
 
     Args:
@@ -678,7 +869,7 @@ async def chat(  # ruff: ignore[too-many-arguments, too-many-positional-argument
         all_channels_in_guild: All channels in the guild, if applicable.
 
     Returns:
-        The bot's response as a string, or None if no response.
+        The model's answer, reasoning, and sources, or None if no channel.
     """
     if not current_channel:
         return None
@@ -723,7 +914,12 @@ async def chat(  # ruff: ignore[too-many-arguments, too-many-positional-argument
         message_history=message_history,
     )
 
-    return result.output
+    new_messages = result.new_messages()
+    return ChatResult(
+        output=result.output,
+        thinking=get_thinking(new_messages),
+        sources=get_sources(new_messages),
+    )
 
 
 # MARK: get_recent_messages
@@ -997,7 +1193,7 @@ class LoviBotClient(discord.Client):
 
         async with message.channel.typing():
             try:
-                response: str | None = await chat(
+                chat_result: ChatResult | None = await chat(
                     client=self,
                     user_message=incoming_message,
                     current_channel=message.channel,
@@ -1019,8 +1215,8 @@ class LoviBotClient(discord.Client):
                 )
                 return
 
-            reply: str = response or "I forgor how to think 💀"
-            if response:
+            memory_reply, reply = build_responses(chat_result)
+            if chat_result and chat_result.output:
                 logger.info(
                     "Responding to message: %s with: %s",
                     incoming_message,
@@ -1034,7 +1230,11 @@ class LoviBotClient(discord.Client):
 
             # Record the bot's reply in memory
             try:
-                add_message_to_memory(str(message.channel.id), "LoviBot", reply)
+                add_message_to_memory(
+                    str(message.channel.id),
+                    "LoviBot",
+                    memory_reply,
+                )
             except Exception:
                 logger.exception("Failed to add bot reply to memory for on_message")
 
@@ -1121,7 +1321,7 @@ async def ask(
         add_message_to_memory(str(interaction.channel.id), interaction.user.name, text)
 
     # Get model response
-    model_response: str | None = await chat(
+    chat_result: ChatResult | None = await chat(
         client=client,
         user_message=text,
         current_channel=interaction.channel,
@@ -1129,19 +1329,18 @@ async def ask(
         allowed_users=allowed_users,
         all_channels_in_guild=interaction.guild.channels if interaction.guild else None,
     )
+    memory_response, display_answer = build_responses(chat_result)
 
     truncated_text: str = truncate_user_input(text)
 
-    # Fallback if model provided no response
-    if not model_response:
+    if not chat_result or not chat_result.output:
         logger.warning("No response from the AI model. Message: %s", text)
-        model_response = "I forgor how to think 💀"
 
-    # Record the bot's reply (raw model output) for conversation memory
+    # Record the bot's reply (without the reasoning block) for memory
     if interaction.channel is not None:
-        add_message_to_memory(str(interaction.channel.id), "LoviBot", model_response)
+        add_message_to_memory(str(interaction.channel.id), "LoviBot", memory_response)
 
-    display_response: str = f"`{truncated_text}`\n\n{model_response}"
+    display_response: str = f"`{truncated_text}`\n\n{display_answer}"
     logger.info("Responding to message: %s with: %s", text, display_response)
 
     # If response is longer than 2000 characters, split it into multiple messages

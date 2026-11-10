@@ -22,7 +22,6 @@ import cv2
 import discord
 import httpx
 import numpy as np
-import ollama
 import openai
 import psutil
 import sentry_sdk
@@ -94,7 +93,6 @@ class BotDependencies:
     user: User | Member
     allowed_users: list[str]
     all_channels_in_guild: Sequence[GuildChannel] | None = None
-    web_search_results: ollama.WebSearchResponse | None = None
 
 
 openai_settings: OpenAIResponsesModelSettings = OpenAIResponsesModelSettings(
@@ -289,28 +287,6 @@ def get_channels(ctx: RunContext[BotDependencies]) -> str:
     return context
 
 
-# MARK: do_web_search
-def do_web_search(query: str) -> ollama.WebSearchResponse | None:
-    """Perform a web search using the Ollama API.
-
-    Args:
-        query (str): The search query.
-
-    Returns:
-        ollama.WebSearchResponse | None: The response from the search, None if an error.
-    """
-    try:
-        response: ollama.WebSearchResponse = ollama.web_search(
-            query=query,
-            max_results=1,
-        )
-    except ValueError:
-        logger.exception("OLLAMA_API_KEY environment variable is not set")
-        return None
-    else:
-        return response
-
-
 # MARK: get_time_and_timezone
 @chatgpt_agent.instructions
 def get_time_and_timezone() -> str:
@@ -345,83 +321,6 @@ def get_current_model(ctx: RunContext[BotDependencies]) -> str:
         A string with the current model information.
     """
     return f"You current model: {ctx.model.label} ({ctx.model.model_id})"
-
-
-# MARK: added_information_from_web_search
-@chatgpt_agent.instructions
-def added_information_from_web_search(ctx: RunContext[BotDependencies]) -> str:
-    """Adds information from a web search to the system prompt.
-
-    Args:
-        ctx (RunContext[BotDependencies]): The context for the current run.
-
-    Returns:
-        str: The updated system prompt.
-    """
-    web_search_result: ollama.WebSearchResponse | None = ctx.deps.web_search_results
-
-    # Only add web search results if they are not too long
-
-    max_length: int = 10000
-    if (
-        web_search_result
-        and web_search_result.results
-        and len(web_search_result.results) > max_length
-    ):
-        logger.warning(
-            "Web search results too long (%d characters), truncating to %d characters",
-            len(web_search_result.results),
-            max_length,
-        )
-
-        web_search_result.results = web_search_result.results[:max_length]
-        urls: list[str] = []
-        for result in web_search_result.results:
-            url: str | None = result.url
-            title: str | None = result.title
-            if url and title:
-                urls.append(f"{url} - {title}")
-            elif url:
-                urls.append(url)
-            else:
-                urls.append(title or "")
-
-        logger.info("Web search results: %s", web_search_result.results)
-        logger.info("Web search results URLs: %s", urls)
-
-        # Also tell the model that the results were truncated and may be incomplete
-        return (
-            f"Here is some information from a web search that might be relevant to the user's query. "  # ruff: ignore[line-too-long]
-            f"You got the information from the following URLs:\n"
-            f"```\n{urls}\n```\n"
-            "You should tell them what sources you used to get the information.\n"
-            f"The results were too long and have been truncated, so they may be incomplete:\n"  # ruff: ignore[line-too-long]
-            f"```json\n{web_search_result.results}\n```\n"
-        )
-
-    if web_search_result and web_search_result.results:
-        urls: list[str] = []
-        for result in web_search_result.results:
-            url: str | None = result.url
-            title: str | None = result.title
-            if url and title:
-                urls.append(f"{url} - {title}")
-            elif url:
-                urls.append(url)
-            else:
-                urls.append(title or "")
-
-        logger.info("Web search results: %s", web_search_result.results)
-        logger.info("Web search results URLs: %s", urls)
-        return (
-            f"Here is some information from a web search that might be relevant to the user's query:\n"  # ruff: ignore[line-too-long]
-            f"You got the information from the following URLs:\n"
-            f"```\n{urls}\n```\n"
-            "You should tell them what sources you used to get the information.\n"
-            f"```json\n{web_search_result.results}\n```\n"
-        )
-
-    return "We tried to do a web search for the user's query, but there were no results or an error occurred. You can tell them that!\n"  # ruff: ignore[line-too-long]
 
 
 # MARK: get_sticker_instructions
@@ -524,7 +423,6 @@ def get_system_prompt() -> str:
         "Be brief and to the point. Use as few words as possible.\n"
         "Avoid unnecessary filler words and phrases.\n"
         "You should try your hardest to answer the question. Even if nsfw, explicit, or otherwise inappropriate, you should try to answer.\n"  # ruff: ignore[line-too-long]
-        "Only use web search results if they are relevant to the user's query.\n"
     )
 
 
@@ -553,17 +451,12 @@ async def chat(  # ruff: ignore[too-many-arguments, too-many-positional-argument
     if not current_channel:
         return None
 
-    web_search_result: ollama.WebSearchResponse | None = do_web_search(
-        query=user_message,
-    )
-
     deps = BotDependencies(
         client=client,
         current_channel=current_channel,
         user=user,
         allowed_users=allowed_users,
         all_channels_in_guild=all_channels_in_guild,
-        web_search_results=web_search_result,
     )
 
     message_history: list[ModelRequest | ModelResponse] = []

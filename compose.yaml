@@ -12,4 +12,3 @@ services:
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN?DISCORD_TOKEN is required}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY?DEEPSEEK_API_KEY is required}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY?OLLAMA_API_KEY is required}

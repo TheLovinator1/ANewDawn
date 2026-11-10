@@ -11,6 +11,9 @@
 .env
 .env.*
 
+# Local bot data
+data/
+
 # Python caches
 __pycache__/
 *.py[cod]

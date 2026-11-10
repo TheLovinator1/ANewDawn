@@ -12,3 +12,9 @@ services:
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN?DISCORD_TOKEN is required}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY?DEEPSEEK_API_KEY is required}
+      DATA_DIR: /app/data
+    volumes:
+      - anewdawn_data:/app/data
+
+volumes:
+  anewdawn_data:

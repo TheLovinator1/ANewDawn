@@ -35,10 +35,13 @@ WORKDIR /app
 
 COPY --from=builder --chown=app:app /app /app
 
+RUN mkdir -p /app/data && chown app:app /app/data
+
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONHASHSEED=random
+    PYTHONHASHSEED=random \
+    DATA_DIR=/app/data
 
 USER app
 

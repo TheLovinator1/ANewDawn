@@ -10,12 +10,10 @@ from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.messages import ToolReturnPart
 
 from main import SOURCES_MAX
-from main import THINKING_MAX_CHARS
 from main import ChatResult
 from main import append_sources
 from main import build_responses
-from main import compose_response
-from main import format_thinking
+from main import build_thinking_file
 from main import get_sources
 from main import get_thinking
 
@@ -144,7 +142,17 @@ class TestAppendSources:
     def test_appends_missing_sources(self) -> None:
         """Test that a source section is added to the answer."""
         assert append_sources("Answer", ["https://example.com/a"]) == (
-            "Answer\n\n**Sources:**\n- <https://example.com/a>"
+            "Answer\n\n**Sources:** [1](<https://example.com/a>)"
+        )
+
+    def test_numbers_multiple_sources_on_one_line(self) -> None:
+        """Test that multiple sources are numbered on a single line."""
+        assert append_sources(
+            "Answer",
+            ["https://example.com/a", "https://example.com/b"],
+        ) == (
+            "Answer\n\n**Sources:** "
+            "[1](<https://example.com/a>) [2](<https://example.com/b>)"
         )
 
     def test_skips_sources_already_in_the_answer(self) -> None:
@@ -152,7 +160,7 @@ class TestAppendSources:
         assert append_sources(
             "See https://example.com/a",
             ["https://example.com/a", "https://example.com/b"],
-        ) == ("See https://example.com/a\n\n**Sources:**\n- <https://example.com/b>")
+        ) == ("See https://example.com/a\n\n**Sources:** [1](<https://example.com/b>)")
 
     def test_leaves_answer_unchanged_without_missing_sources(self) -> None:
         """Test that an answer with all sources stays untouched."""
@@ -160,49 +168,43 @@ class TestAppendSources:
         assert append_sources(answer, ["https://example.com/a"]) == answer
 
 
-class TestFormatThinking:
-    """Tests for the format_thinking function."""
+class TestBuildThinkingFile:
+    """Tests for the build_thinking_file function."""
 
-    def test_returns_empty_for_blank_thinking(self) -> None:
-        """Test that blank reasoning produces no message."""
-        assert not format_thinking("   ")
-
-    def test_formats_thinking(self) -> None:
-        """Test that reasoning is formatted as a code block."""
-        assert format_thinking("Step one.") == "```\nStep one.\n```"
-
-    def test_uses_longer_fence_for_backticks(self) -> None:
-        """Test that code fences in the reasoning do not close the block."""
-        assert format_thinking("Use ```python\nprint(1)\n```") == (
-            "````\nUse ```python\nprint(1)\n```\n````"
+    def test_returns_none_without_reasoning(self) -> None:
+        """Test that no file is created without reasoning or an answer."""
+        assert build_thinking_file(None) is None
+        assert build_thinking_file(ChatResult(output="Answer.")) is None
+        assert (
+            build_thinking_file(
+                ChatResult(output="Answer.", thinking="   "),
+            )
+            is None
+        )
+        assert (
+            build_thinking_file(
+                ChatResult(output="", thinking="Step one."),
+            )
+            is None
         )
 
-    def test_truncates_long_thinking(self) -> None:
-        """Test that long reasoning is truncated."""
-        result = format_thinking("a" * (THINKING_MAX_CHARS + 50))
-
-        assert result == f"```\n{'a' * (THINKING_MAX_CHARS - 3)}...\n```"
-
-
-class TestComposeResponse:
-    """Tests for the compose_response function."""
-
-    def test_puts_thinking_before_the_answer(self) -> None:
-        """Test that reasoning is placed in a code block before the answer."""
-        assert compose_response("Answer.", "Step one.") == (
-            "```\nStep one.\n```\nAnswer."
+    def test_puts_reasoning_in_a_text_file(self) -> None:
+        """Test that reasoning is written to a text attachment."""
+        thinking_file = build_thinking_file(
+            ChatResult(output="Answer.", thinking="Step one."),
         )
 
-    def test_returns_only_the_answer_without_thinking(self) -> None:
-        """Test that no code block is added when there is no reasoning."""
-        assert compose_response("Answer.", "") == "Answer."
+        assert thinking_file is not None
+        assert thinking_file.filename == "thinking.txt"
+        assert thinking_file.fp.read() == b"Step one."
+        thinking_file.close()
 
 
 class TestBuildResponses:
     """Tests for the build_responses function."""
 
     def test_builds_memory_and_display_answers(self) -> None:
-        """Test that sources are in both versions and thinking only in display."""
+        """Test that sources are in both versions and thinking is not."""
         chat_result = ChatResult(
             output="Answer.",
             thinking="Step one.",
@@ -210,10 +212,9 @@ class TestBuildResponses:
         )
         memory_response, display_response = build_responses(chat_result)
 
-        assert memory_response == ("Answer.\n\n**Sources:**\n- <https://example.com/a>")
-        assert display_response == (
-            "```\nStep one.\n```\nAnswer.\n\n**Sources:**\n- <https://example.com/a>"
-        )
+        expected: str = "Answer.\n\n**Sources:** [1](<https://example.com/a>)"
+        assert memory_response == expected
+        assert display_response == expected
 
     def test_returns_fallback_without_a_result(self) -> None:
         """Test that a missing result returns the fallback for both versions."""

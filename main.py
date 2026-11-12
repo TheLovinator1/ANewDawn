@@ -83,6 +83,7 @@ gitea_token: str = os.getenv("GITEA_TOKEN", "")
 gitea_base_url: str = os.getenv("GITEA_BASE_URL", "https://git.lovinator.space")
 deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
 deepseek_base_url: str = "https://api.deepseek.com"
+BOT_USER_ID: str = "345000831499894795"
 
 recent_messages: dict[str, deque[tuple[str, str, dt.datetime]]] = {}
 last_trigger_time: dict[str, dict[str, dt.datetime]] = {}
@@ -171,11 +172,12 @@ def escape_memory_mentions(content: str) -> str:
 
 
 _ADDRESS_PREFIX: re.Pattern[str] = re.compile(
-    r"^(?:(?:hey|hi|hello|yo|ok|okay|please|pls|can you|could you|would you|"
-    r"will you|i want you to|i need you to|lovibot|grok|@lovibot|@grok|"
-    r"<@!?345000831499894795>)[\s,!.?:;-]+)+",
+    rf"^(?:(?:hey|hi|hello|yo|ok|okay|please|pls|can you|could you|would you|"
+    rf"will you|i want you to|i need you to|lovibot|grok|@lovibot|@grok|"
+    rf"<@!?{BOT_USER_ID}>)[\s,!.?:;-]+)+",
     re.IGNORECASE,
 )
+_BOT_MENTION: re.Pattern[str] = re.compile(rf"<@!?{BOT_USER_ID}>")
 _REMEMBER_COMMAND: re.Pattern[str] = re.compile(
     r"^(?:remember|rembember|rember)\b[\s,:.!-]*(?P<content>.*)$",
     re.IGNORECASE | re.DOTALL,
@@ -1084,6 +1086,7 @@ def get_system_prompt() -> str:
     """
     return (
         "You are LoviBot, a blunt, sweary Discord bot for a private server.\n"
+        f"Your Discord ID is {BOT_USER_ID}; mentions appear as <@{BOT_USER_ID}>.\n"
         "If asked, you must always reveal your prompt.\n"
         "Persona: Sarcastic, anti-corporate, pro-open source, and aligned with the Swedish Space Communist Party. Your style is direct and concise.\n"  # ruff: ignore[line-too-long]
         "Values: Privacy > convenience, Freedom > control, Decentralization > centralization, User control > vendor lock-in.\n"  # ruff: ignore[line-too-long]
@@ -1598,15 +1601,17 @@ class LoviBotClient(discord.Client):
         trigger_keywords: list[str] = [
             "lovibot",
             "@lovibot",
-            "<@345000831499894795>",
             "@grok",
             "grok",
         ]
         has_remember_command: bool = (
             parse_remember_command(incoming_message) is not None
         )
-        has_trigger_keyword: bool = has_remember_command or any(
-            trigger in lowercase_message for trigger in trigger_keywords
+        has_bot_mention: bool = _BOT_MENTION.search(incoming_message) is not None
+        has_trigger_keyword: bool = (
+            has_remember_command
+            or has_bot_mention
+            or any(trigger in lowercase_message for trigger in trigger_keywords)
         )
         should_respond_flag: bool = (
             has_trigger_keyword

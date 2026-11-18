@@ -81,7 +81,7 @@ class TestDeepSeekSearch:
         expected: int,
     ) -> None:
         """Test that the result count is clamped to the supported range."""
-        payloads: list[dict[str, object]] = []
+        payloads: list[dict[str, str | int | bool]] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
             payloads.append(json.loads(request.content))

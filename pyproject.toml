@@ -11,7 +11,7 @@ dependencies = [
     "openai",
     "opencv-contrib-python-headless",
     "psutil",
-    "pydantic-ai-slim[openai]",
+    "pydantic-ai-slim[mcp,openai]",
     "python-dotenv",
     "sentry-sdk",
 ]
@@ -42,6 +42,7 @@ lint.ignore = [
     "undocumented-public-nested-class", # Checks for undocumented public class definitions, for nested classes.
     "commented-out-code",               # Checks for commented-out Python code.
     "line-contains-todo",               # Checks for "TODO" comments.
+    "any-type",                         # Checks that function arguments and return values are annotated with a more specific type than Any.
 
     # Conflicting lint rules when using Ruff's formatter
     # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules

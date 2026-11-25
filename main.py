@@ -1601,7 +1601,10 @@ async def send_chunked_message(
         else [text[i : i + max_len] for i in range(0, len(text), max_len)]
     )
     for index, chunk in enumerate(chunks):
-        await channel.send(chunk, file=file if index == 0 else None)
+        if index == 0 and file is not None:
+            await channel.send(chunk, file=file)
+        else:
+            await channel.send(chunk)
 
 
 # MARK: LoviBotClient
@@ -2043,7 +2046,10 @@ async def send_response(
     """
     logger.info("Sending response to interaction in channel %s", interaction.channel)
     try:
-        await interaction.followup.send(response, file=file)
+        if file is None:
+            await interaction.followup.send(response)
+        else:
+            await interaction.followup.send(response, file=file)
     except discord.HTTPException as e:
         e.add_note(f"Response length: {len(response)} characters.")
         e.add_note(f"User input length: {len(text)} characters.")

@@ -64,7 +64,7 @@ load_dotenv(verbose=True)
 
 sentry_sdk.init(
     dsn="https://ebbd2cdfbd08dba008d628dad7941091@o4505228040339456.ingest.us.sentry.io/4507630719401984",
-    send_default_pii=True,
+    data_collection={"user_info": True},
 )
 
 logging.basicConfig(
